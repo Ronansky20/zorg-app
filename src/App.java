@@ -9,7 +9,10 @@ public class App {
 
     void run() {
         users.add(new Person(1, "Jane", "Doe"));
-        System.out.println(users.get(0).id);
+
+        for (Person person : users) {
+            System.out.println((person.id() + ": " + person.firstName()));
+        }
     }
     
     public static void main(String[] args){
