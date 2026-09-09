@@ -8,8 +8,8 @@ public class App {
     List<Person> users = new ArrayList<>();
 
     void run() {
-        users.add(new Person(1, "Jane", "Doe"));
-        users.add(new Person(2, "John", "Doe"));
+        users.add(new Person(0, "Jane", "Doe"));
+        users.add(new Person(1, "John", "Doe"));
 
         for (Person person : users) {
             System.out.println((person.id() + ": " + person.firstName()));
