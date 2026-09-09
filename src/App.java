@@ -6,5 +6,7 @@ public class App {
         Person user1 = new Person(1, "Jane", "Doe");
 
         System.out.println(user1);
+
+        System.out.println(user1.id);
     }
 }
