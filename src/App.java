@@ -9,6 +9,7 @@ public class App {
 
     void run() {
         users.add(new Person(1, "Jane", "Doe"));
+        users.add(new Person(2, "John", "Doe"));
 
         for (Person person : users) {
             System.out.println((person.id() + ": " + person.firstName()));
