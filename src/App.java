@@ -17,28 +17,50 @@
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 public class App {
+
+    Scanner scan = new Scanner(System.in);
 
     record Person( 
         String firstName, 
         String lastName, 
         int age, 
         double weight, 
-        double length, 
+        double height, 
         double bmi, 
         String address) {}
 
     List<Person> users = new ArrayList<>();
 
     void run() {
-        users.add(new Person("Jane", "Doe", 42, 50, 170, 22.5, "123 Main St"));
-        users.add(new Person("John", "Doe",42, 42, 42, 22.5, "456 Elm St"));
-        users.add(new Person("John", "Doe",42, 42, 42, 22.5, "456 Elm St"));
+        // users.add(new Person("Jane", "Doe", 42, 50, 170, 22.5, "123 Main St"));
+        // users.add(new Person("John", "Doe",42, 42, 42, 22.5, "456 Elm St"));
+        // users.add(new Person("Nomen", "Nescio",42, 42, 42, 22.5, "678 Elm St"));
+        // users.add(new Person("Gnu", "Lu",42, 42, 42, 22.5, "890 Elm St"));
+        // users.add(new Person("Joe", "Blogs",42, 42, 42, 22.5, "890 Elm St"));
+        // users.add(new Person("Alan", "Smithee",42, 42, 42, 22.5, "890 Elm St"));
 
+        System.out.println("Enter the new patients first name: ");
+        String personFirstName = scan.nextLine();
+        System.out.println("Enter the patients last name: ");
+        String personLastName = scan.nextLine();
+        System.out.println("Enter the new patients age: ");
+        int personAge = Integer.parseInt(scan.nextLine().trim());
+        System.out.println("Enter the new patients weight: ");
+        double personWeight = Double.parseDouble(scan.nextLine().trim());
+        System.out.println("Enter the new patients height: ");
+        double personHeight = Double.parseDouble(scan.nextLine().trim());
+        System.out.println("Enter the patients adress: ");
+        String personAdress = scan.nextLine();
 
+        double personBmi = personWeight / (personHeight * personHeight);
+
+        users.add(new Person(personFirstName, personLastName, personAge, personWeight, personHeight, personBmi, personAdress));
+        
         for (Person person : users) {
-            System.out.println((person.firstName() + " age: " + person.age() + " weight: " + person.weight()));
+            System.out.println((person.firstName() + " age: " + person.age() + " weight: " + person.weight() + " persons address: " + person.address()) + " Persons BMI: " + person.bmi());
         }
     }
     
