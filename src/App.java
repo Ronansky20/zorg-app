@@ -34,6 +34,24 @@ public class App {
 
     List<Person> users = new ArrayList<>();
 
+    Person readPerson() {
+        System.out.println("Enter the new patient's first name: ");
+        String firstName = scan.nextLine();
+        System.out.println("Enter the patient's last name: ");
+        String lastName = scan.nextLine();
+        System.out.println("Enter the new patient's age: ");
+        int age = Integer.parseInt(scan.nextLine().trim());
+        System.out.println("Enter the new patient's weight (kg): ");
+        double weight = Double.parseDouble(scan.nextLine().trim());
+        System.out.println("Enter the new patient's height (m): ");
+        double height = Double.parseDouble(scan.nextLine().trim());
+        System.out.println("Enter the patient's address: ");
+        String address = scan.nextLine();
+    
+        double bmi = weight / (height * height);
+        return new Person(firstName, lastName, age, weight, height, bmi, address);
+    }
+
     void run() {
         // users.add(new Person("Jane", "Doe", 42, 50, 170, 22.5, "123 Main St"));
         // users.add(new Person("John", "Doe",42, 42, 42, 22.5, "456 Elm St"));
@@ -42,23 +60,12 @@ public class App {
         // users.add(new Person("Joe", "Blogs",42, 42, 42, 22.5, "890 Elm St"));
         // users.add(new Person("Alan", "Smithee",42, 42, 42, 22.5, "890 Elm St"));
 
-        System.out.println("Enter the new patients first name: ");
-        String personFirstName = scan.nextLine();
-        System.out.println("Enter the patients last name: ");
-        String personLastName = scan.nextLine();
-        System.out.println("Enter the new patients age: ");
-        int personAge = Integer.parseInt(scan.nextLine().trim());
-        System.out.println("Enter the new patients weight: ");
-        double personWeight = Double.parseDouble(scan.nextLine().trim());
-        System.out.println("Enter the new patients height: ");
-        double personHeight = Double.parseDouble(scan.nextLine().trim());
-        System.out.println("Enter the patients adress: ");
-        String personAdress = scan.nextLine();
-
-        double personBmi = personWeight / (personHeight * personHeight);
-
-        users.add(new Person(personFirstName, personLastName, personAge, personWeight, personHeight, personBmi, personAdress));
-        
+        boolean addingMore = true;
+        while (addingMore) {
+            users.add(readPerson());
+            System.out.println("Add another patient? (y/n) ");
+            addingMore = scan.nextLine().trim().equalsIgnoreCase("y");
+        }
         for (Person person : users) {
             System.out.println((person.firstName() + " age: " + person.age() + " weight: " + person.weight() + " persons address: " + person.address()) + " Persons BMI: " + person.bmi());
         }
