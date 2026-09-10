@@ -53,12 +53,7 @@ public class App {
     }
 
     void run() {
-        // users.add(new Person("Jane", "Doe", 42, 50, 170, 22.5, "123 Main St"));
-        // users.add(new Person("John", "Doe",42, 42, 42, 22.5, "456 Elm St"));
-        // users.add(new Person("Nomen", "Nescio",42, 42, 42, 22.5, "678 Elm St"));
-        // users.add(new Person("Gnu", "Lu",42, 42, 42, 22.5, "890 Elm St"));
-        // users.add(new Person("Joe", "Blogs",42, 42, 42, 22.5, "890 Elm St"));
-        // users.add(new Person("Alan", "Smithee",42, 42, 42, 22.5, "890 Elm St"));
+        System.out.println("Welcome to the patient management system!");
 
         boolean addingMore = true;
         while (addingMore) {
