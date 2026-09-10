@@ -1,20 +1,3 @@
-/* TODO: Currently I have to manually add the id, this should be automated. */
-/* Way to go about it I think
-    What I could probably do is make a radar, that checks for a response to a question, like name, age, bla bla bla.
-    these get stored in a String, int etc.
-    Then I insert these using users.add.
-    I just need to check if I can give it variables.
-
-    This makes it interactive.
-
-    Still need to check for finding people. However I have the id, so I could probably print like a name.
-    Then with the corresponding id, for them to find it easily.
-
-    However they would have to remember id's. So I don't know why I added ID's
-
-    I could probably remove that, but for now its whatever and keep it, maybe its useful down the line.
-*/
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
