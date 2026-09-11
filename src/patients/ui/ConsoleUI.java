@@ -39,12 +39,19 @@ public class ConsoleUI {
 
     private Patient readPatient() {
         String firstName = readLine("Enter the new patient's first name: ");
-        String lastName  = readLine("Enter the patient's last name: ");
-        int age          = readInt("Enter the new patient's age: ");
-        double weight    = readDouble("Enter the new patient's weight (kg): ");
-        double height    = readDouble("Enter the new patient's height (m): ");
-        String address   = readLine("Enter the patient's address: ");
-        return new Patient(firstName, lastName, age, weight, height, address);
+        String lastName = readLine("Enter the patient's last name: ");
+        int age = readInt("Enter the new patient's age: ");
+        double weight = readDouble("Enter the new patient's weight (kg): ");
+        double height = readDouble("Enter the new patient's height (m): ");
+        String address = readLine("Enter the patient's address: ");
+    
+        Patient.Specialists specialists = new Patient.Specialists(
+                readLine("Enter the patient's doctor: "),
+                readLine("Enter the patient's apothecary: "),
+                readLine("Enter the patient's physician: "),
+                readLine("Enter the patient's dentist: "));
+    
+        return new Patient(firstName, lastName, age, weight, height, address, specialists);
     }
 
     private void printPatients() {
