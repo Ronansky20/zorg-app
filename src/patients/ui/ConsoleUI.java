@@ -54,8 +54,6 @@ public class ConsoleUI {
         }
     }
 
-    // --- input helpers ---
-
     private String readLine(String prompt) {
         System.out.println(prompt);
         return scan.nextLine().trim();
