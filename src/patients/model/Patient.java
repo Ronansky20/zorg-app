@@ -7,7 +7,8 @@ public record Patient(
         double weight,
         double height,
         String address,
-        Specialists specialists) {
+        Specialists specialists,
+        Medication medication) {
 
     public double bmi() {
         return weight / (height * height);
@@ -18,4 +19,10 @@ public record Patient(
             String pharmacist,
             String physician,
             String dentist) {}
+
+    public record Medication(
+            String name,
+            String dosage,
+            String frequency,
+            String duration) {}
 }
