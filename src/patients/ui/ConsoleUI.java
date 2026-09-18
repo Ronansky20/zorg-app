@@ -47,7 +47,7 @@ public class ConsoleUI {
     
         Patient.Specialists specialists = new Patient.Specialists(
                 readLine("Enter the patient's doctor: "),
-                readLine("Enter the patient's apothecary: "),
+                readLine("Enter the patient's pharmacist: "),
                 readLine("Enter the patient's physician: "),
                 readLine("Enter the patient's dentist: "));
     
