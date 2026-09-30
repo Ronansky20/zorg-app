@@ -1,6 +1,7 @@
 package patients.ui;
 
 import patients.model.Patient;
+import patients.model.Profession;
 import patients.service.PatientService;
 
 import java.io.UncheckedIOException;
@@ -16,11 +17,8 @@ public class ConsoleUI {
     }
 
     public void run() {
-        try {
-            service.load();
-        } catch (UncheckedIOException e) {
-            System.out.println("Warning: " + e.getMessage() + " - starting with an empty list.");
-        }
+
+        loadPatients();
 
         System.out.println("Welcome to the patient management system!");
 
@@ -30,10 +28,14 @@ public class ConsoleUI {
 
         printPatients();
 
+        savePatients();
+    }
+
+    private void loadPatients() {
         try {
-            service.save();
+            service.load();
         } catch (UncheckedIOException e) {
-            System.out.println("Error: " + e.getMessage());
+            System.out.println("Warning: " + e.getMessage() + " - starting with an empty list.");
         }
     }
 
@@ -48,7 +50,7 @@ public class ConsoleUI {
         Patient.Specialists specialists = new Patient.Specialists(
                 readLine("Enter the patient's doctor: "),
                 readLine("Enter the patient's pharmacist: "),
-                readLine("Enter the patient's physician: "),
+                readLine("Enter the patient's physiotherapist: "),
                 readLine("Enter the patient's dentist: "));
     
         return new Patient(firstName, lastName, age, weight, height, address, specialists);
@@ -58,6 +60,14 @@ public class ConsoleUI {
         for (Patient p : service.getAll()) {
             System.out.printf("%s %s, age: %d, weight: %.1f kg, address: %s, BMI: %.1f%n",
                     p.firstName(), p.lastName(), p.age(), p.weight(), p.address(), p.bmi());
+        }
+    }
+
+    private void savePatients() {
+        try {
+            service.save();
+        } catch (UncheckedIOException e) {
+            System.out.println("Error: " + e.getMessage());
         }
     }
 
