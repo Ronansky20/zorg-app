@@ -1,6 +1,7 @@
 package patients.service;
 
 import patients.model.Patient;
+import patients.model.Profession;
 import patients.repository.PatientRepository;
 
 import java.util.ArrayList;
@@ -10,6 +11,7 @@ public class PatientService {
 
     private final PatientRepository repository;
     private final List<Patient> patients = new ArrayList<>();
+    private Profession currentProfession;
 
     public PatientService(PatientRepository repository) {
         this.repository = repository;

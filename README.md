@@ -32,6 +32,28 @@ In VS Code, opening [src/patients/App.java](src/patients/App.java) and pressing
 **Run** does the same thing — the Java extension compiles to `bin/` and uses
 `lib/*.jar` as the classpath.
 
+## Tests
+
+Unit tests live under [test/](test), mirroring the `src/` package layout, and use
+JUnit 5 — vendored as a console-standalone jar in
+[lib/junit-platform-console-standalone-1.11.0.jar](lib/junit-platform-console-standalone-1.11.0.jar),
+same as Gson.
+
+```bash
+# compile src/ and test/ together into bin-test/
+javac -cp "lib/gson-2.14.0.jar:lib/junit-platform-console-standalone-1.11.0.jar" \
+    -d bin-test $(find src test -name '*.java')
+
+# run every test on the classpath
+java -jar lib/junit-platform-console-standalone-1.11.0.jar execute \
+    -cp "bin-test:lib/gson-2.14.0.jar" --scan-classpath --details=tree
+```
+
+On Windows, use `;` instead of `:` as the classpath separator.
+
+Tests compile into `bin-test/` rather than `bin/` so the committed, hand-built
+`bin/` output used by the app isn't mixed with test classes.
+
 > The app resolves `patients.json` relative to the **current working directory**,
 > so start it from the project root or your data will end up somewhere else.
 

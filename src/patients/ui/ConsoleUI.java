@@ -9,7 +9,6 @@ import patients.service.ProfessionPermissions;
 
 import java.io.UncheckedIOException;
 import java.util.Scanner;
-//import java.util.Set;
 import java.util.List;
 import java.util.ArrayList;
 
