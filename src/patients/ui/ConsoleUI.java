@@ -25,6 +25,7 @@ public class ConsoleUI {
 
         System.out.println("Hello, please choose your profession");
         Profession profession = askProfession();
+        service.login(profession);
         System.out.println("Welcome " + profession.label);
 
         loadPatients();
@@ -59,13 +60,18 @@ public class ConsoleUI {
             int actionNumber = actionChoice - 1;
 
             Action chosenAction = possibleActions.get(actionNumber);
-            switch (chosenAction) {
-                case VIEW_LIST:
-                    printPatients();
-                    break;
-                case ADD_PATIENT:
-                    service.add(readPatient()); 
-                    break;
+            
+            try {
+                switch (chosenAction) {
+                    case VIEW_LIST:
+                        printPatients();
+                        break;
+                    case ADD_PATIENT:
+                        service.add(readPatient()); 
+                        break;
+                }
+            } catch (SecurityException e) {
+                System.out.println(e.getMessage());
             }
         }
     }

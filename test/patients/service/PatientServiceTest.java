@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import patients.model.Patient;
+import patients.model.Profession;
 
 import java.util.List;
 
@@ -25,6 +26,7 @@ class PatientServiceTest {
     void setUp() {
         repository = new InMemoryPatientRepository();
         service = new PatientService(repository);
+        service.login(Profession.DOCTOR);
     }
 
     @Test
@@ -36,6 +38,7 @@ class PatientServiceTest {
     void loadPopulatesPatientsFromRepository() {
         repository = new InMemoryPatientRepository(List.of(patient("John"), patient("Jane")));
         service = new PatientService(repository);
+        service.login(Profession.DOCTOR);
 
         service.load();
 
@@ -46,6 +49,7 @@ class PatientServiceTest {
     void loadReplacesPreviouslyLoadedPatients() {
         repository = new InMemoryPatientRepository(List.of(patient("John")));
         service = new PatientService(repository);
+        service.login(Profession.DOCTOR);
         service.load();
 
         repository.saveAll(List.of(patient("Jane")));
@@ -78,5 +82,21 @@ class PatientServiceTest {
 
         assertEquals(1, repository.saveAllCalls);
         assertEquals(List.of(patient("John")), repository.getStored());
+    }
+
+    @Test
+    void addAndGetAllRequireALoggedInUser() {
+        service = new PatientService(repository);
+
+        assertThrows(IllegalStateException.class, () -> service.add(patient("John")));
+        assertThrows(IllegalStateException.class, () -> service.getAll());
+    }
+
+    @Test
+    void addAndGetAllRejectProfessionsWithoutPermission() {
+        service.login(Profession.PHARMACIST);
+
+        assertThrows(SecurityException.class, () -> service.add(patient("John")));
+        assertThrows(SecurityException.class, () -> service.getAll());
     }
 }
