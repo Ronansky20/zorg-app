@@ -13,6 +13,10 @@ public class PatientService {
     private final List<Patient> patients = new ArrayList<>();
     private Profession currentProfession;
 
+    public void login(Profession profession) {
+        this.currentProfession = profession;
+    }
+
     public PatientService(PatientRepository repository) {
         this.repository = repository;
     }
