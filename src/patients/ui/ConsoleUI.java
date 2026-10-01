@@ -1,10 +1,16 @@
 package patients.ui;
 
 import patients.model.Patient;
+import patients.model.Profession;
+import patients.model.Action;
+
 import patients.service.PatientService;
+import patients.service.ProfessionPermissions;
 
 import java.io.UncheckedIOException;
 import java.util.Scanner;
+import java.util.List;
+import java.util.ArrayList;
 
 public class ConsoleUI {
 
@@ -16,24 +22,97 @@ public class ConsoleUI {
     }
 
     public void run() {
+
+        System.out.println("Hello, please choose your profession");
+        Profession profession = askProfession();
+        service.login(profession);
+        System.out.println("Welcome " + profession.label);
+
+        loadPatients();
+
+        System.out.println("Welcome to the patient management system!");
+
+        mainMenu(profession);
+
+        savePatients();
+    }
+
+    private void mainMenu(Profession profession) {
+        List<Action> possibleActions = new ArrayList<>(ProfessionPermissions.getAllowedActions(profession));
+        
+        while (true) {
+            System.out.println("0. Quit");
+            for (int i = 0; i < possibleActions.size(); i++) {
+                System.out.println((i + 1) + ". " + possibleActions.get(i).label);
+            }
+
+            int actionChoice = readInt("Please choose an option 0-" + possibleActions.size());
+
+            if (actionChoice < 0 || actionChoice > possibleActions.size() ) {
+                System.out.println("Invalid choice. Try again.");
+                continue;
+            }
+
+            if (actionChoice == 0) {
+                return;
+            }
+
+            int actionNumber = actionChoice - 1;
+
+            Action chosenAction = possibleActions.get(actionNumber);
+            
+            try {
+                switch (chosenAction) {
+                    case VIEW_LIST:
+                        printPatients();
+                        break;
+                    case ADD_PATIENT:
+                        service.add(readPatient()); 
+                        break;
+                }
+            } catch (SecurityException e) {
+                System.out.println(e.getMessage());
+            }
+        }
+    }
+
+    private Profession askProfession() {
+        int i = 1;
+        for (Profession p : Profession.values()) {
+            System.out.println(i + ". " + p.label);
+            i++;
+        }
+
+        while (true) {
+            try {
+                Profession profession = professionSwitch(readInt("Please choose your profession 1-" + Profession.values().length));
+                return profession;
+            } catch (IllegalArgumentException e) {
+                System.out.println("That is not a profession, please try again.");
+            }
+        }
+    }
+
+    private Profession professionSwitch(int professionChoice) {
+        switch (professionChoice) {
+            case 1:
+                return Profession.DOCTOR;
+            case 2:
+                return Profession.PHARMACIST;
+            case 3:
+                return Profession.PHYSIOTHERAPIST;
+            case 4:
+                return Profession.DENTIST;
+            default:
+                throw new IllegalArgumentException("Invalid profession choice: " + professionChoice);
+        }
+    }
+
+    private void loadPatients() {
         try {
             service.load();
         } catch (UncheckedIOException e) {
             System.out.println("Warning: " + e.getMessage() + " - starting with an empty list.");
-        }
-
-        System.out.println("Welcome to the patient management system!");
-
-        do {
-            service.add(readPatient());
-        } while (askYesNo("Add another patient? (y/n) "));
-
-        printPatients();
-
-        try {
-            service.save();
-        } catch (UncheckedIOException e) {
-            System.out.println("Error: " + e.getMessage());
         }
     }
 
@@ -48,7 +127,7 @@ public class ConsoleUI {
         Patient.Specialists specialists = new Patient.Specialists(
                 readLine("Enter the patient's doctor: "),
                 readLine("Enter the patient's pharmacist: "),
-                readLine("Enter the patient's physician: "),
+                readLine("Enter the patient's physiotherapist: "),
                 readLine("Enter the patient's dentist: "));
     
         return new Patient(firstName, lastName, age, weight, height, address, specialists);
@@ -58,6 +137,14 @@ public class ConsoleUI {
         for (Patient p : service.getAll()) {
             System.out.printf("%s %s, age: %d, weight: %.1f kg, address: %s, BMI: %.1f%n",
                     p.firstName(), p.lastName(), p.age(), p.weight(), p.address(), p.bmi());
+        }
+    }
+
+    private void savePatients() {
+        try {
+            service.save();
+        } catch (UncheckedIOException e) {
+            System.out.println("Error: " + e.getMessage());
         }
     }
 
@@ -86,7 +173,7 @@ public class ConsoleUI {
         }
     }
 
-    private boolean askYesNo(String prompt) {
-        return readLine(prompt).equalsIgnoreCase("y");
-    }
+    // private boolean askYesNo(String prompt) {
+    //     return readLine(prompt).equalsIgnoreCase("y");
+    // }
 }

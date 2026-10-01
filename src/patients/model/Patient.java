@@ -16,6 +16,6 @@ public record Patient(
     public record Specialists(
             String doctor,
             String pharmacist,
-            String physician,
+            String physiotherapist,
             String dentist) {}
 }
