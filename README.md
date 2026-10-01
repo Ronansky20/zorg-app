@@ -1,8 +1,9 @@
 # zorg-app — Patient Management System
 
 A small Java console application for recording patients and their care team. You
-enter patients one after another, the app prints an overview with each patient's
-BMI, and everything is stored in a local JSON file so the data is still there the
+pick your profession, then use a menu to view the patient overview (with each
+patient's BMI) or add new patients — depending on what your profession is allowed
+to do. Everything is stored in a local JSON file so the data is still there the
 next time you run it.
 
 ## Requirements
@@ -59,8 +60,71 @@ Tests compile into `bin-test/` rather than `bin/` so the committed, hand-built
 
 ## Using the app
 
-```
+A session looks like this (logged in as a doctor):
+
+```text
+Hello, please choose your profession
+1. Doctor
+2. Pharmacist
+3. Physiotherapist
+4. Dentist
+Please choose your profession 1-4
+1
+Welcome Doctor
 Welcome to the patient management system!
+0. Quit
+1. View patients
+2. Add patient
+Please choose an option 0-2
+1
+John Doe, age: 28, weight: 89.2 kg, address: Elm Street 58, BMI: 24.7
+0. Quit
+1. View patients
+2. Add patient
+Please choose an option 0-2
+0
+```
+
+What happens, in order:
+
+1. **Choose your profession.** Pick a number from the list. Anything outside the
+   range is rejected and you are asked again. There is no password. Picking a
+   profession is the "login" and only decides which menu options you get.
+2. **Patients are loaded** from `patients.json`. If the file is missing the app
+   starts with an empty list; if it exists but cannot be read, a warning is
+   printed and the app continues with an empty list.
+3. **Main menu.** The menu lists only the actions your profession is allowed to
+   perform, numbered from 1, plus `0. Quit`. After each action you return to the
+   menu, so you can view and add as often as you like in one session.
+4. **Quit (`0`).** The full in-memory list (the patients loaded from disk plus
+   any you added) is written back to `patients.json`, replacing the file.
+
+### Permissions
+
+| Profession | View patients | Add patient |
+| --- | :---: | :---: |
+| Doctor | ✓ | ✓ |
+| Physiotherapist | ✓ | ✓ |
+| Dentist | ✓ | ✓ |
+| Pharmacist | — | — |
+
+A pharmacist currently gets a menu with only `0. Quit`. Permissions are defined in
+[ProfessionPermissions.java](src/patients/service/ProfessionPermissions.java) and
+are also enforced in `PatientService`. If the UI ever offers an action the
+profession isn't allowed to perform, the service refuses it and the menu prints
+e.g. `Pharmacist is not allowed to Add patient`.
+
+### Menu actions
+
+**View patients** prints every patient with their computed BMI:
+
+```text
+John Doe, age: 28, weight: 89.2 kg, address: Elm Street 58, BMI: 24.7
+```
+
+**Add patient** asks for one patient, then returns to the menu:
+
+```text
 Enter the new patient's first name:
 Enter the patient's last name:
 Enter the new patient's age:
@@ -68,28 +132,18 @@ Enter the new patient's weight (kg):
 Enter the new patient's height (m):
 Enter the patient's address:
 Enter the patient's doctor:
-Enter the patient's apothecary:
-Enter the patient's physician:
+Enter the patient's pharmacist:
+Enter the patient's physiotherapist:
 Enter the patient's dentist:
-Add another patient? (y/n)
 ```
 
-What happens, in order:
-
-1. Existing patients are loaded from `patients.json`. If the file is missing the
-   app starts with an empty list; if it exists but cannot be read, a warning is
-   printed and the app continues with an empty list.
-2. You are prompted for one patient at a time, and asked whether to add another.
-   Anything other than `y`/`Y` ends the entry loop.
-3. All patients — the ones loaded from disk plus the ones you just typed — are
-   printed with their computed BMI:
-   ```
-   John Doe, age: 28, weight: 89.2 kg, address: Elm Street 58, BMI: 24.7
-   ```
-4. The full list is written back to `patients.json`, replacing the file.
+New patients are only kept in memory until you quit. Nothing is written to disk
+until then.
 
 Input handling details:
 
+- Menu and profession choices must be whole numbers; anything else is
+  re-prompted.
 - Age must be a whole number; weight and height accept decimals with either a
   comma or a dot (`70,5` and `70.5` are both fine). Invalid input is re-prompted.
 - All text input is trimmed. Empty answers are accepted and stored as empty
@@ -119,13 +173,17 @@ whose value is the list of patients:
       "specialists": {
         "doctor": "Anon",
         "pharmacist": "Anon",
-        "physician": "Anon",
+        "physiotherapist": "Anon",
         "dentist": "Anon"
       }
     }
   ]
 }
 ```
+
+> The specialist field used to be called `physician`. Data files written before
+> the rename still load, but that value is ignored (the physiotherapist comes
+> back as `null`) and is dropped on the next save.
 
 - The key is read from the file on load and reused on save, so it stays stable
   for a given data file. It is only generated (via `SecureRandom`) when saving a
@@ -138,17 +196,22 @@ whose value is the list of patients:
 
 ## Project structure
 
-```
+```text
 src/patients/
-├── App.java                              entry point; wires the layers together
-├── model/Patient.java                    Patient + nested Specialists records
-├── repository/PatientRepository.java     storage interface (loadAll/saveAll)
-├── repository/JsonPatientRepository.java Gson-backed JSON file implementation
-├── service/PatientService.java           in-memory patient list + load/save
-└── ui/ConsoleUI.java                     prompts, parsing, output formatting
-lib/gson-2.14.0.jar                       JSON dependency
-bin/                                      compiled .class output (currently committed)
-patients.json                             local data file (git-ignored)
+├── App.java                                entry point; wires the layers together
+├── model/Patient.java                      Patient + nested Specialists records
+├── model/Profession.java                   professions you can log in as
+├── model/Action.java                       menu actions (view, add)
+├── repository/PatientRepository.java       storage interface (loadAll/saveAll)
+├── repository/JsonPatientRepository.java   Gson-backed JSON file implementation
+├── service/PatientService.java             in-memory list, login, permission checks, load/save
+├── service/ProfessionPermissions.java      which profession may perform which action
+└── ui/ConsoleUI.java                       login, menu, prompts, parsing, output formatting
+test/patients/                              JUnit 5 tests, mirroring src/
+lib/gson-2.14.0.jar                         JSON dependency
+lib/junit-platform-console-standalone-*.jar test runner
+bin/                                        compiled .class output (currently committed)
+patients.json                               local data file (git-ignored)
 ```
 
 Layering and the reasoning behind it are described in
@@ -158,14 +221,16 @@ Layering and the reasoning behind it are described in
 
 Known gaps, so nobody goes looking for features that are not there yet:
 
-- **Add-only.** There is no search, edit or delete, and no way to skip the entry
-  loop — every run requires at least one new patient before the overview is shown.
-- **Save happens once**, at the very end. If the app is interrupted, the entered
-  patients are lost.
+- **View and add only.** There is no search, edit or delete.
+- **No real authentication.** Anyone can pick any profession; there are no user
+  accounts or passwords.
+- **Pharmacists can't do anything** besides quit. They have no permitted actions
+  yet.
+- **Save happens once**, when you choose `0. Quit`. If the app is interrupted
+  (Ctrl+C, crash), every patient added in that session is lost.
 - **No duplicate detection and no patient IDs** — three identical "John Doe"
   records are three separate patients.
 - **Height is not guarded against zero**, so a patient with height `0` yields an
   infinite BMI.
-- The specialist prompt still says *"apothecary"* while the model field is named
-  `pharmacist`.
-- **No automated tests.**
+- **The console UI has no tests.** The model, repository, service and permissions
+  are covered under [test/](test).
