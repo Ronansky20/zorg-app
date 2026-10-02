@@ -116,7 +116,7 @@ e.g. `Pharmacist is not allowed to Add patient`.
 
 ### Menu actions
 
-**View patients** prints every patient with their computed BMI:
+**View patients** prints every patient with their computed age and BMI:
 
 ```text
 John Doe, age: 28, weight: 89.2 kg, address: Elm Street 58, BMI: 24.7
@@ -127,7 +127,7 @@ John Doe, age: 28, weight: 89.2 kg, address: Elm Street 58, BMI: 24.7
 ```text
 Enter the new patient's first name:
 Enter the patient's last name:
-Enter the new patient's age:
+Enter the new patient's date of birth (dd-mm-yyyy):
 Enter the new patient's weight (kg):
 Enter the new patient's height (m):
 Enter the patient's address:
@@ -144,13 +144,16 @@ Input handling details:
 
 - Menu and profession choices must be whole numbers; anything else is
   re-prompted.
-- Age must be a whole number; weight and height accept decimals with either a
-  comma or a dot (`70,5` and `70.5` are both fine). Invalid input is re-prompted.
+- The date of birth must be a real date in `dd-mm-yyyy` form (e.g. `15-06-1995`)
+  and not in the future. Weight and height accept decimals with either a comma
+  or a dot (`70,5` and `70.5` are both fine). Invalid input is re-prompted.
 - All text input is trimmed. Empty answers are accepted and stored as empty
   strings — there is no validation of names, addresses or specialists.
-- BMI is `weight / (height * height)` and is computed on the fly
-  ([Patient.bmi()](src/patients/model/Patient.java#L12-L14)); it is never stored
-  in the JSON file.
+- Age (in completed years) and BMI (`weight / (height * height)`) are computed
+  on the fly ([Patient.age()](src/patients/model/Patient.java#L19-L25),
+  [Patient.bmi()](src/patients/model/Patient.java#L15-L17)); neither is stored
+  in the JSON file. Someone born on 29 February turns a year older on 1 March
+  in non-leap years.
 
 ## Data file
 
@@ -166,7 +169,7 @@ whose value is the list of patients:
     {
       "firstName": "John",
       "lastName": "Doe",
-      "age": 28,
+      "birthDate": "1998-03-14",
       "weight": 89.2,
       "height": 1.9,
       "address": "Elm Street 58",
@@ -190,9 +193,15 @@ whose value is the list of patients:
   file that has no key yet.
 - Only the **first** top-level entry is read. The format leaves room for multiple
   groups, but the current code ignores everything after the first one.
+- The date of birth is stored as an ISO date string (`yyyy-MM-dd`).
 - Missing JSON fields are left at their Java defaults by Gson — an absent
-  `pharmacist` becomes `null`, an absent `age` becomes `0`. Nothing in the app
-  currently rejects such a record.
+  `pharmacist` or `birthDate` becomes `null`. Nothing in the app currently
+  rejects such a record; a patient without a date of birth is listed with
+  `age: unknown`.
+
+> Patients used to store a fixed `age` instead of a `birthDate`. Data files
+> written before that change still load, but the old `age` is ignored (shown as
+> `unknown`) and is dropped on the next save.
 
 ## Project structure
 

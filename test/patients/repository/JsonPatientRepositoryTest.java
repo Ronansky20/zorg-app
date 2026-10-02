@@ -9,6 +9,7 @@ import patients.model.Patient;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,7 +22,7 @@ class JsonPatientRepositoryTest {
     Path tempDir;
 
     private static Patient patient(String firstName) {
-        return new Patient(firstName, "Doe", 30, 70.0, 1.8, "Elm Street 58",
+        return new Patient(firstName, "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
                 new Patient.Specialists("Doctor Anon", "Pharmacist Anon", "Physio Anon", "Dentist Anon"));
     }
 
@@ -42,6 +43,14 @@ class JsonPatientRepositoryTest {
         List<Patient> loaded = repository.loadAll();
 
         assertEquals(original, loaded);
+    }
+
+    @Test
+    void birthDateIsStoredAsIsoString() throws IOException {
+        Path file = tempDir.resolve("patients.json");
+        new JsonPatientRepository(file).saveAll(List.of(patient("John")));
+
+        assertTrue(Files.readString(file).contains("\"birthDate\": \"1995-06-15\""));
     }
 
     @Test

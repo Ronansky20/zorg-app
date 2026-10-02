@@ -29,11 +29,12 @@ used. Nothing below the UI reads from `System.in` or writes to `System.out`.
 
 ### `model` — [Patient](../src/patients/model/Patient.java)
 
-An immutable `record` holding `firstName`, `lastName`, `age`, `weight`, `height`,
+An immutable `record` holding `firstName`, `lastName`, `birthDate`, `weight`, `height`,
 `address` and a nested `Specialists` record (`doctor`, `pharmacist`,
-`physiotherapist`, `dentist`). The only behaviour is `bmi()`, which derives BMI from weight and
-height instead of storing it — so the value can never drift out of sync with the
-fields it is computed from.
+`physiotherapist`, `dentist`). Its only behaviour is `age()`, derived from the date of birth and today's
+date, and `bmi()`, derived from weight and height. Neither is stored, so they can
+never drift out of sync with the fields they are computed from (a stored age
+would be wrong after the next birthday).
 
 Records were chosen for the model because Gson can serialize them directly and
 because patients are values: to "change" one you create a new one.
@@ -64,6 +65,9 @@ implements it on top of a single JSON file:
 - The file maps a **group key** to a list of patients
   (`Map<String, List<Patient>>`, captured with a Gson `TypeToken` because generic
   types are erased at runtime).
+- `LocalDate` fields (the date of birth) go through a small `LocalDateAdapter`
+  that writes them as ISO strings (`"1998-03-14"`), because Gson cannot reflect
+  into `java.time` classes on modern JDKs.
 - `loadAll()` returns an empty list when the file does not exist, and otherwise
   takes the first map entry, remembering its key in the `groupKey` field.
 - `saveAll()` reuses that remembered key, or generates one from `SecureRandom`

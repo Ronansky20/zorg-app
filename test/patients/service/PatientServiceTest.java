@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import patients.model.Patient;
 import patients.model.Profession;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,7 +19,7 @@ class PatientServiceTest {
     private PatientService service;
 
     private static Patient patient(String firstName) {
-        return new Patient(firstName, "Doe", 30, 70.0, 1.8, "Elm Street 58",
+        return new Patient(firstName, "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
                 new Patient.Specialists("Anon", "Anon", "Anon", "Anon"));
     }
 
