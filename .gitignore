@@ -4,6 +4,7 @@
 !.vscode/extensions.json
 patients.json
 bin-test/
+bin/
 # test classes VS Code compiles into bin/ alongside the app
 bin/**/*Test.class
 bin/**/InMemoryPatientRepository.class
