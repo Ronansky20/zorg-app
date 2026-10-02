@@ -8,6 +8,10 @@ import patients.service.PatientService;
 import patients.service.ProfessionPermissions;
 
 import java.io.UncheckedIOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.Scanner;
 import java.util.List;
 import java.util.ArrayList;
@@ -16,6 +20,8 @@ public class ConsoleUI {
 
     private final PatientService service;
     private final Scanner scan = new Scanner(System.in);
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd-MM-uuuu")
+            .withResolverStyle(ResolverStyle.STRICT);
 
     public ConsoleUI(PatientService service) {
         this.service = service;
@@ -119,7 +125,7 @@ public class ConsoleUI {
     private Patient readPatient() {
         String firstName = readLine("Enter the new patient's first name: ");
         String lastName = readLine("Enter the patient's last name: ");
-        int age = readInt("Enter the new patient's age: ");
+        LocalDate birthDate = readBirthDate("Enter the new patient's date of birth (dd-mm-yyyy): ");
         double weight = readDouble("Enter the new patient's weight (kg): ");
         double height = readDouble("Enter the new patient's height (m): ");
         String address = readLine("Enter the patient's address: ");
@@ -130,13 +136,14 @@ public class ConsoleUI {
                 readLine("Enter the patient's physiotherapist: "),
                 readLine("Enter the patient's dentist: "));
     
-        return new Patient(firstName, lastName, age, weight, height, address, specialists);
+        return new Patient(firstName, lastName, birthDate, weight, height, address, specialists);
     }
 
     private void printPatients() {
         for (Patient p : service.getAll()) {
-            System.out.printf("%s %s, age: %d, weight: %.1f kg, address: %s, BMI: %.1f%n",
-                    p.firstName(), p.lastName(), p.age(), p.weight(), p.address(), p.bmi());
+            String age = p.birthDate() != null ? String.valueOf(p.age()) : "unknown";
+            System.out.printf("%s %s, age: %s, weight: %.1f kg, address: %s, BMI: %.1f%n",
+                    p.firstName(), p.lastName(), age, p.weight(), p.address(), p.bmi());
         }
     }
 
@@ -169,6 +176,21 @@ public class ConsoleUI {
                 return Double.parseDouble(readLine(prompt).replace(',', '.'));
             } catch (NumberFormatException e) {
                 System.out.println("That's not a number, try again.");
+            }
+        }
+    }
+
+    private LocalDate readBirthDate(String prompt) {
+        while (true) {
+            try {
+                LocalDate date = LocalDate.parse(readLine(prompt), DATE_FORMAT);
+                if (date.isAfter(LocalDate.now())) {
+                    System.out.println("A date of birth can't be in the future, try again.");
+                    continue;
+                }
+                return date;
+            } catch (DateTimeParseException e) {
+                System.out.println("That's not a valid date (dd-mm-yyyy), try again.");
             }
         }
     }
