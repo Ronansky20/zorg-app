@@ -14,7 +14,7 @@ public class ProfessionPermissions {
 
     static {
         allowedActions.put(Profession.DOCTOR, EnumSet.of(Action.VIEW_LIST, Action.ADD_PATIENT));
-        allowedActions.put(Profession.PHARMACIST, EnumSet.noneOf(Action.class));
+        allowedActions.put(Profession.PHARMACIST, EnumSet.of(Action.VIEW_LIST));
         allowedActions.put(Profession.PHYSIOTHERAPIST, EnumSet.of(Action.VIEW_LIST, Action.ADD_PATIENT));
         allowedActions.put(Profession.DENTIST, EnumSet.of(Action.VIEW_LIST, Action.ADD_PATIENT));
     }
