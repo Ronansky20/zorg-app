@@ -194,8 +194,4 @@ public class ConsoleUI {
             }
         }
     }
-
-    // private boolean askYesNo(String prompt) {
-    //     return readLine(prompt).equalsIgnoreCase("y");
-    // }
 }
