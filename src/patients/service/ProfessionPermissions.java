@@ -25,5 +25,6 @@ public class ProfessionPermissions {
 
     public static Set<Action> getAllowedActions(Profession profession) {
         return allowedActions.get(profession);
+
     }
 }
