@@ -70,7 +70,7 @@ public class ConsoleUI {
             try {
                 switch (chosenAction) {
                     case VIEW_LIST:
-                        printPatients();
+                        printPatients(profession);
                         break;
                     case ADD_PATIENT:
                         service.add(readPatient());
@@ -140,7 +140,7 @@ public class ConsoleUI {
         return new Patient(firstName, lastName, birthDate, weight, height, address, specialists);
     }
 
-    private void printPatients() {
+    private void printPatients(Profession profession) {
         for (Patient p : service.getAll()) {
             String age = p.birthDate() != null ? String.valueOf(p.age()) : "unknown";
             System.out.printf("%s %s, age: %s, weight: %.1f kg, address: %s, BMI: %.1f%n",
