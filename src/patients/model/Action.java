@@ -2,7 +2,8 @@ package patients.model;
 
 public enum Action {
     VIEW_LIST("View patients"),
-    ADD_PATIENT("Add patient");
+    ADD_PATIENT("Add patient"),
+    EDIT_PATIENT("Edit Patient");
 
     public final String label;
 

@@ -45,7 +45,7 @@ public class ConsoleUI {
 
     private void mainMenu(Profession profession) {
         List<Action> possibleActions = new ArrayList<>(ProfessionPermissions.getAllowedActions(profession));
-        
+
         while (true) {
             System.out.println("0. Quit");
             for (int i = 0; i < possibleActions.size(); i++) {
@@ -54,7 +54,7 @@ public class ConsoleUI {
 
             int actionChoice = readInt("Please choose an option 0-" + possibleActions.size());
 
-            if (actionChoice < 0 || actionChoice > possibleActions.size() ) {
+            if (actionChoice < 0 || actionChoice > possibleActions.size()) {
                 System.out.println("Invalid choice. Try again.");
                 continue;
             }
@@ -66,14 +66,14 @@ public class ConsoleUI {
             int actionNumber = actionChoice - 1;
 
             Action chosenAction = possibleActions.get(actionNumber);
-            
+
             try {
                 switch (chosenAction) {
                     case VIEW_LIST:
                         printPatients();
                         break;
                     case ADD_PATIENT:
-                        service.add(readPatient()); 
+                        service.add(readPatient());
                         break;
                 }
             } catch (SecurityException e) {
@@ -91,7 +91,8 @@ public class ConsoleUI {
 
         while (true) {
             try {
-                Profession profession = professionSwitch(readInt("Please choose your profession 1-" + Profession.values().length));
+                Profession profession = professionSwitch(
+                        readInt("Please choose your profession 1-" + Profession.values().length));
                 return profession;
             } catch (IllegalArgumentException e) {
                 System.out.println("That is not a profession, please try again.");
@@ -129,13 +130,13 @@ public class ConsoleUI {
         double weight = readDouble("Enter the new patient's weight (kg): ");
         double height = readDouble("Enter the new patient's height (m): ");
         String address = readLine("Enter the patient's address: ");
-    
+
         Patient.Specialists specialists = new Patient.Specialists(
                 readLine("Enter the patient's doctor: "),
                 readLine("Enter the patient's pharmacist: "),
                 readLine("Enter the patient's physiotherapist: "),
                 readLine("Enter the patient's dentist: "));
-    
+
         return new Patient(firstName, lastName, birthDate, weight, height, address, specialists);
     }
 
