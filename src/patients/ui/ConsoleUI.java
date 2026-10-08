@@ -1,6 +1,7 @@
 package patients.ui;
 
 import patients.model.Patient;
+import patients.model.PatientField;
 import patients.model.Profession;
 import patients.model.Action;
 
@@ -145,6 +146,23 @@ public class ConsoleUI {
             String age = p.birthDate() != null ? String.valueOf(p.age()) : "unknown";
             System.out.printf("%s %s, age: %s, weight: %.1f kg, address: %s, BMI: %.1f%n",
                     p.firstName(), p.lastName(), age, p.weight(), p.address(), p.bmi());
+        }
+    }
+
+    private String fieldValue(Patient patient, PatientField patientField) {
+        switch (patientField) {
+            case FIRST_NAME:
+                return patient.firstName();
+            case LAST_NAME:
+                return patient.lastName();
+            case DATE_OF_BIRTH:
+                return String.valueOf(patient.birthDate());
+            case WEIGHT:
+                return String.valueOf(patient.weight());
+            case HEIGHT:
+                return String.valueOf(patient.height());
+            case ADDRESS:
+                return patient.address();
         }
     }
 
