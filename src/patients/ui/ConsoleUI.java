@@ -16,6 +16,7 @@ import java.time.format.ResolverStyle;
 import java.util.Scanner;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Set;
 
 public class ConsoleUI {
 
@@ -75,6 +76,9 @@ public class ConsoleUI {
                         break;
                     case ADD_PATIENT:
                         service.add(readPatient());
+                        break;
+                    case EDIT_PATIENT:
+                        System.out.println(false);
                         break;
                 }
             } catch (SecurityException e) {
@@ -142,13 +146,12 @@ public class ConsoleUI {
     }
 
     private void printPatients(Profession profession) {
+        Set<PatientField> viewableFields = FieldPermissions.getViewableFields(profession);
         for (Patient p : service.getAll()) {
-            String age = p.birthDate() != null ? String.valueOf(p.age()) : "unknown";
-            System.out.printf("%s %s, age: %s, weight: %.1f kg, address: %s, BMI: %.1f%n",
-                    p.firstName(), p.lastName(), age, p.weight(), p.address(), p.bmi());
-            for (PatientField field : FieldPermissions.getViewableFields(profession)) {
+            for (PatientField field : viewableFields) {
                 System.out.println(field.label + ": " + fieldValue(p, field));
             }
+            System.out.println("----------");
         }
     }
 
