@@ -12,6 +12,60 @@ public record Patient(
         String address,
         Specialists specialists) {
 
+    public Patient withFirstName(String newFirstName) {
+        return new Patient(
+                newFirstName, this.lastName(),
+                this.birthDate(),
+                this.weight(), this.height(),
+                this.address(),
+                this.specialists());
+    }
+
+    public Patient withLastName(String newLastName) {
+        return new Patient(
+                this.firstName(), newLastName,
+                this.birthDate(),
+                this.weight(), this.height(),
+                this.address(),
+                this.specialists());
+    }
+
+    public Patient withBirthDate(LocalDate newBirthDate) {
+        return new Patient(
+                this.firstName(), this.lastName(),
+                newBirthDate,
+                this.weight(), this.height(),
+                this.address(),
+                this.specialists());
+    }
+
+    public Patient withWeight(double newWeight) {
+        return new Patient(
+                this.firstName(), this.lastName(),
+                this.birthDate(),
+                newWeight, this.height(),
+                this.address(),
+                this.specialists());
+    }
+
+    public Patient withHeight(double newHeight) {
+        return new Patient(
+                this.firstName(), this.lastName(),
+                this.birthDate(),
+                this.weight(), newHeight,
+                this.address(),
+                this.specialists());
+    }
+
+    public Patient withAddress(String newAddress) {
+        return new Patient(
+                this.firstName(), this.lastName(),
+                this.birthDate(),
+                this.weight(), this.height(),
+                newAddress,
+                this.specialists());
+    }
+
     public double bmi() {
         return weight / (height * height);
     }
@@ -28,5 +82,6 @@ public record Patient(
             String doctor,
             String pharmacist,
             String physiotherapist,
-            String dentist) {}
+            String dentist) {
+    }
 }

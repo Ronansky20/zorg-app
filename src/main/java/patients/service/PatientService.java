@@ -23,7 +23,6 @@ public class PatientService {
         }
     }
 
-    
     public void login(Profession profession) {
         this.currentProfession = profession;
     }
