@@ -2,7 +2,7 @@
 
 The app is deliberately split into four layers so that the console, the business
 rules and the storage format can change independently. Everything is wired
-together once, in [App.java](../src/patients/App.java):
+together once, in [App.java](../src/main/java/patients/App.java):
 
 ```java
 PatientRepository repository = new JsonPatientRepository(Paths.get("patients.json"));
@@ -27,7 +27,7 @@ used. Nothing below the UI reads from `System.in` or writes to `System.out`.
 
 ## The layers
 
-### `model` — [Patient](../src/patients/model/Patient.java)
+### `model` — [Patient](../src/main/java/patients/model/Patient.java)
 
 An immutable `record` holding `firstName`, `lastName`, `birthDate`, `weight`, `height`,
 `address` and a nested `Specialists` record (`doctor`, `pharmacist`,
@@ -41,14 +41,14 @@ because patients are values: to "change" one you create a new one.
 
 Two enums sit next to it, each with a human-readable `label` that the UI prints:
 
-- [Profession](../src/patients/model/Profession.java): `DOCTOR`, `PHARMACIST`,
+- [Profession](../src/main/java/patients/model/Profession.java): `DOCTOR`, `PHARMACIST`,
   `PHYSIOTHERAPIST`, `DENTIST`. These are the roles a user can log in as.
-- [Action](../src/patients/model/Action.java): `VIEW_LIST`, `ADD_PATIENT`. These
+- [Action](../src/main/java/patients/model/Action.java): `VIEW_LIST`, `ADD_PATIENT`. These
   are the things a user can do from the main menu.
 
 ### `repository` — storage
 
-[PatientRepository](../src/patients/repository/PatientRepository.java) is a
+[PatientRepository](../src/main/java/patients/repository/PatientRepository.java) is a
 two-method interface:
 
 ```java
@@ -59,7 +59,7 @@ void saveAll(List<Patient> patients);
 It is a whole-list contract, not per-record CRUD — the app always reads and
 writes the complete collection.
 
-[JsonPatientRepository](../src/patients/repository/JsonPatientRepository.java)
+[JsonPatientRepository](../src/main/java/patients/repository/JsonPatientRepository.java)
 implements it on top of a single JSON file:
 
 - The file maps a **group key** to a list of patients
@@ -81,7 +81,7 @@ implements it on top of a single JSON file:
 Swapping storage means writing another `PatientRepository` (a database, a CSV
 file, an in-memory fake for tests) and changing the one line in `App`.
 
-### `service` — [PatientService](../src/patients/service/PatientService.java) and [ProfessionPermissions](../src/patients/service/ProfessionPermissions.java)
+### `service` — [PatientService](../src/main/java/patients/service/PatientService.java) and [ProfessionPermissions](../src/main/java/patients/service/ProfessionPermissions.java)
 
 `PatientService` owns the in-memory list of patients that the rest of the run
 works against, and the profession of the user currently logged in:
@@ -112,7 +112,7 @@ a future UI (or a bug) offers the action anyway.
 The load/save split is what makes the current session-based behaviour explicit:
 the file is read once at the start and written once at the end.
 
-### `ui` — [ConsoleUI](../src/patients/ui/ConsoleUI.java)
+### `ui` — [ConsoleUI](../src/main/java/patients/ui/ConsoleUI.java)
 
 All console interaction and all parsing. `run()` is the whole session:
 
@@ -143,4 +143,4 @@ is the only place that formats output.
 | Change who may do what | `ProfessionPermissions` only. The menu and the service checks both read from it |
 | Different storage (DB, CSV) | new `PatientRepository` implementation; swap the one line in `App` |
 | Validation (non-empty names, height > 0) | `PatientService` if it is a rule about patients; `ConsoleUI` if it is about re-prompting input |
-| Tests | under `test/`, mirroring `src/`. [InMemoryPatientRepository](../test/patients/service/InMemoryPatientRepository.java) lets `PatientService` be tested without touching the filesystem; remember to `login(...)` first |
+| Tests | under `src/test/java`, mirroring `src/main/java`. [InMemoryPatientRepository](../src/test/java/patients/service/InMemoryPatientRepository.java) lets `PatientService` be tested without touching the filesystem; remember to `login(...)` first |
