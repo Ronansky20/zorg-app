@@ -94,10 +94,22 @@ class PatientServiceTest {
     }
 
     @Test
-    void addAndGetAllRejectProfessionsWithoutPermission() {
-        service.login(Profession.PHARMACIST);
+    void addIsRejectedForProfessionsOtherThanDoctor() {
+        for (Profession profession : List.of(Profession.PHARMACIST, Profession.PHYSIOTHERAPIST, Profession.DENTIST)) {
+            service.login(profession);
 
-        assertThrows(SecurityException.class, () -> service.add(patient("John")));
-        assertThrows(SecurityException.class, () -> service.getAll());
+            assertThrows(SecurityException.class, () -> service.add(patient("John")));
+        }
+    }
+
+    @Test
+    void getAllIsAllowedForEveryProfession() {
+        service.add(patient("John"));
+
+        for (Profession profession : Profession.values()) {
+            service.login(profession);
+
+            assertEquals(List.of(patient("John")), service.getAll());
+        }
     }
 }

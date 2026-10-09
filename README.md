@@ -46,6 +46,18 @@ Unit tests live under [src/test/java/](src/test/java), mirroring the
 
 An HTML report is written to `build/reports/tests/test/index.html`.
 
+There is also an end-to-end smoke test that builds the app, drives the console UI
+with scripted input (a doctor adds a patient, then a pharmacist views it) and
+checks the output and the saved `patients.json`:
+
+```bash
+./scripts/smoke-test.sh
+```
+
+Both run automatically on every pull request (and on pushes to `main`) via
+[.github/workflows/pr-checks.yml](.github/workflows/pr-checks.yml); the unit
+tests run on JDK 17 and 25.
+
 > The app resolves `patients.json` relative to the **current working directory**.
 > `./gradlew run` always uses the project root; if you start the app another way
 > (e.g. from `build/install/`), run it from the project root or your data will
