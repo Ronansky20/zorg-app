@@ -10,53 +10,58 @@ next time you run it.
 
 - **JDK 17 or newer** (the code uses `record`, added in 16); developed and
   tested against Temurin 25
-- **Gson 2.14.0** — already vendored in [lib/gson-2.14.0.jar](lib/gson-2.14.0.jar)
+- **Gson 2.14.0** and **JUnit 5** — declared in
+  [build.gradle.kts](build.gradle.kts) and downloaded from Maven Central
 
-No Maven/Gradle build: the project is compiled directly with `javac`, and VS Code
-picks up the layout from [.vscode/settings.json](.vscode/settings.json).
+The project builds with Gradle. You don't need to install it: the Gradle wrapper
+(`./gradlew`) downloads the right version on first use. It runs on whatever JDK is
+on your `PATH` / `JAVA_HOME`, and the code is compiled for Java 17.
 
 ## Build & run
 
 From the project root:
 
 ```bash
-# compile everything into bin/
-javac -cp lib/gson-2.14.0.jar -d bin $(find src -name '*.java')
+# compile and run (interactive; reads from the console)
+./gradlew run -q --console=plain
 
-# run
-java -cp "bin:lib/gson-2.14.0.jar" patients.App
+# build a runnable distribution into build/install/zorg-app/
+./gradlew installDist
 ```
 
-On Windows, use `;` instead of `:` as the classpath separator.
+On Windows, use `gradlew.bat` instead of `./gradlew`.
 
-In VS Code, opening [src/patients/App.java](src/patients/App.java) and pressing
-**Run** does the same thing — the Java extension compiles to `bin/` and uses
-`lib/*.jar` as the classpath.
+In VS Code, the Java extension imports the Gradle project automatically, so
+opening [src/main/java/patients/App.java](src/main/java/patients/App.java) and
+pressing **Run** also works.
 
 ## Tests
 
-Unit tests live under [test/](test), mirroring the `src/` package layout, and use
-JUnit 5 — vendored as a console-standalone jar in
-[lib/junit-platform-console-standalone-1.11.0.jar](lib/junit-platform-console-standalone-1.11.0.jar),
-same as Gson.
+Unit tests live under [src/test/java/](src/test/java), mirroring the
+`src/main/java` package layout, and use JUnit 5.
 
 ```bash
-# compile src/ and test/ together into bin-test/
-javac -cp "lib/gson-2.14.0.jar:lib/junit-platform-console-standalone-1.11.0.jar" \
-    -d bin-test $(find src test -name '*.java')
-
-# run every test on the classpath
-java -jar lib/junit-platform-console-standalone-1.11.0.jar execute \
-    -cp "bin-test:lib/gson-2.14.0.jar" --scan-classpath --details=tree
+./gradlew test
 ```
 
-On Windows, use `;` instead of `:` as the classpath separator.
+An HTML report is written to `build/reports/tests/test/index.html`.
 
-Tests compile into `bin-test/` rather than `bin/` so the committed, hand-built
-`bin/` output used by the app isn't mixed with test classes.
+There is also an end-to-end smoke test that builds the app, drives the console UI
+with scripted input (a doctor adds a patient, then a pharmacist views it) and
+checks the output and the saved `patients.json`:
 
-> The app resolves `patients.json` relative to the **current working directory**,
-> so start it from the project root or your data will end up somewhere else.
+```bash
+./scripts/smoke-test.sh
+```
+
+Both run automatically on every pull request (and on pushes to `main`) via
+[.github/workflows/pr-checks.yml](.github/workflows/pr-checks.yml); the unit
+tests run on JDK 17 and 25.
+
+> The app resolves `patients.json` relative to the **current working directory**.
+> `./gradlew run` always uses the project root; if you start the app another way
+> (e.g. from `build/install/`), run it from the project root or your data will
+> end up somewhere else.
 
 ## Using the app
 
@@ -109,7 +114,7 @@ What happens, in order:
 | Pharmacist | — | — |
 
 A pharmacist currently gets a menu with only `0. Quit`. Permissions are defined in
-[ProfessionPermissions.java](src/patients/service/ProfessionPermissions.java) and
+[ProfessionPermissions.java](src/main/java/patients/service/ProfessionPermissions.java) and
 are also enforced in `PatientService`. If the UI ever offers an action the
 profession isn't allowed to perform, the service refuses it and the menu prints
 e.g. `Pharmacist is not allowed to Add patient`.
@@ -150,8 +155,8 @@ Input handling details:
 - All text input is trimmed. Empty answers are accepted and stored as empty
   strings — there is no validation of names, addresses or specialists.
 - Age (in completed years) and BMI (`weight / (height * height)`) are computed
-  on the fly ([Patient.age()](src/patients/model/Patient.java#L19-L25),
-  [Patient.bmi()](src/patients/model/Patient.java#L15-L17)); neither is stored
+  on the fly ([Patient.age()](src/main/java/patients/model/Patient.java#L19-L25),
+  [Patient.bmi()](src/main/java/patients/model/Patient.java#L15-L17)); neither is stored
   in the JSON file. Someone born on 29 February turns a year older on 1 March
   in non-leap years.
 
@@ -206,7 +211,7 @@ whose value is the list of patients:
 ## Project structure
 
 ```text
-src/patients/
+src/main/java/patients/
 ├── App.java                                entry point; wires the layers together
 ├── model/Patient.java                      Patient + nested Specialists records
 ├── model/Profession.java                   professions you can log in as
@@ -216,10 +221,9 @@ src/patients/
 ├── service/PatientService.java             in-memory list, login, permission checks, load/save
 ├── service/ProfessionPermissions.java      which profession may perform which action
 └── ui/ConsoleUI.java                       login, menu, prompts, parsing, output formatting
-test/patients/                              JUnit 5 tests, mirroring src/
-lib/gson-2.14.0.jar                         JSON dependency
-lib/junit-platform-console-standalone-*.jar test runner
-bin/                                        compiled .class output (currently committed)
+src/test/java/patients/                     JUnit 5 tests, mirroring src/main/java
+build.gradle.kts                            Gradle build: dependencies, main class, test setup
+gradlew, gradle/wrapper/                    Gradle wrapper (pins the Gradle version)
 patients.json                               local data file (git-ignored)
 ```
 
@@ -242,4 +246,4 @@ Known gaps, so nobody goes looking for features that are not there yet:
 - **Height is not guarded against zero**, so a patient with height `0` yields an
   infinite BMI.
 - **The console UI has no tests.** The model, repository, service and permissions
-  are covered under [test/](test).
+  are covered under [src/test/java/](src/test/java).

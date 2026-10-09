@@ -3,7 +3,10 @@
 !.vscode/settings.json
 !.vscode/extensions.json
 patients.json
-bin-test/
-# test classes VS Code compiles into bin/ alongside the app
-bin/**/*Test.class
-bin/**/InMemoryPatientRepository.class
+
+# Gradle
+.gradle/
+build/
+
+# VS Code Java extension output
+bin/
