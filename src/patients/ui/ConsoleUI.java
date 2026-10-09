@@ -4,7 +4,7 @@ import patients.model.Patient;
 import patients.model.PatientField;
 import patients.model.Profession;
 import patients.model.Action;
-
+import patients.service.FieldPermissions;
 import patients.service.PatientService;
 import patients.service.ProfessionPermissions;
 
@@ -146,6 +146,9 @@ public class ConsoleUI {
             String age = p.birthDate() != null ? String.valueOf(p.age()) : "unknown";
             System.out.printf("%s %s, age: %s, weight: %.1f kg, address: %s, BMI: %.1f%n",
                     p.firstName(), p.lastName(), age, p.weight(), p.address(), p.bmi());
+            for (PatientField field : FieldPermissions.getViewableFields(profession)) {
+                System.out.println(field.label + ": " + fieldValue(p, field));
+            }
         }
     }
 
