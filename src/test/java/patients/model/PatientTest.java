@@ -4,9 +4,12 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,7 +25,7 @@ class PatientTest {
 
     private static Patient patientBornOn(LocalDate birthDate, double weight, double height) {
         return new Patient("id-1", "John", "Doe", birthDate, weight, height, "Elm Street 58",
-                new Patient.Specialists("Anon", "Anon", "Anon", "Anon"), List.of());
+                Map.of("jansen", true), List.of());
     }
 
     @Test
@@ -69,9 +72,48 @@ class PatientTest {
     @Test
     void nullMedicationsBecomeAnEmptyList() {
         Patient patient = new Patient("id-1", "John", "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
-                new Patient.Specialists("Anon", "Anon", "Anon", "Anon"), null);
+                Map.of(), null);
 
         assertTrue(patient.medications().isEmpty());
+    }
+
+    @Test
+    void nullCareTeamBecomesAnEmptyMap() {
+        Patient patient = new Patient("id-1", "John", "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
+                null, List.of());
+
+        assertTrue(patient.careTeam().isEmpty());
+        assertFalse(patient.hasMember("jansen"));
+    }
+
+    @Test
+    void hasMemberIsTrueOnlyForUsersMarkedTrue() {
+        Patient patient = patientWith(70.0, 1.8).withCareTeam(Map.of("jansen", true, "devries", false));
+
+        assertTrue(patient.hasMember("jansen"));
+        assertFalse(patient.hasMember("devries"));
+        assertFalse(patient.hasMember("visser"));
+    }
+
+    @Test
+    void careTeamIsACopyThatCannotBeModified() {
+        Map<String, Boolean> original = new HashMap<>(Map.of("jansen", true));
+        Patient patient = patientWith(70.0, 1.8).withCareTeam(original);
+
+        original.put("visser", true);
+
+        assertEquals(Map.of("jansen", true), patient.careTeam());
+        assertThrows(UnsupportedOperationException.class, () -> patient.careTeam().put("visser", true));
+    }
+
+    @Test
+    void otherMutatorsKeepTheCareTeam() {
+        Patient patient = patientWith(70.0, 1.8);
+
+        assertEquals(Map.of("jansen", true), patient.withFirstName("Jane").careTeam());
+        assertEquals(Map.of("jansen", true), patient.withAddress("Oak Lane 1").careTeam());
+        assertEquals(Map.of("jansen", true), patient.withMedications(List.of(PARACETAMOL)).careTeam());
+        assertEquals(Map.of("jansen", true), patient.withId("id-2").careTeam());
     }
 
     @Test

@@ -1,14 +1,10 @@
 package patients.repository;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import patients.model.Patient;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.lang.reflect.Type;
@@ -65,43 +61,6 @@ public class JsonPatientRepository implements PatientRepository {
     }
 
     private Map<String, Patient> readFile() {
-        Map<String, Patient> patients = new LinkedHashMap<>();
-        if (!Files.exists(file)) {
-            return patients;
-        }
-        JsonElement root;
-        try (Reader reader = Files.newBufferedReader(file)) {
-            root = JsonParser.parseReader(reader);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Could not load " + file, e);
-        }
-        if (root.isJsonNull()) {
-            return patients;
-        }
-        if (!root.isJsonObject()) {
-            throw unknownFormat();
-        }
-        JsonObject object = root.getAsJsonObject();
-        if (object.isEmpty()) {
-            return patients;
-        }
-        if (!object.has(PATIENTS_KEY)) {
-            throw unknownFormat();
-        }
-        Map<String, Patient> stored = gson.fromJson(object.get(PATIENTS_KEY), PATIENTS_TYPE);
-        if (stored != null) {
-            stored.forEach((id, patient) -> {
-                if (patient != null) {
-                    patients.put(id, patient);
-                }
-            });
-        }
-        return patients;
-    }
-
-    private UncheckedIOException unknownFormat() {
-        String message = file + " is not in the expected format ({ \"patients\": { ... } })."
-                + " Files from older versions need to be rewritten, see the README";
-        return new UncheckedIOException(message, new IOException(message));
+        return JsonFiles.readSection(gson, file, PATIENTS_KEY, PATIENTS_TYPE);
     }
 }

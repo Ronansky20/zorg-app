@@ -1,0 +1,12 @@
+{
+  "users": {
+    "jansen": { "name": "Dr. Max Jansen", "profession": "DOCTOR" },
+    "hendriks": { "name": "Dr. Noor Hendriks", "profession": "DOCTOR" },
+    "devries": { "name": "Pieter de Vries", "profession": "PHARMACIST" },
+    "mulder": { "name": "Daan Mulder", "profession": "PHARMACIST" },
+    "bakker": { "name": "Sanne Bakker", "profession": "PHYSIOTHERAPIST" },
+    "dejong": { "name": "Bram de Jong", "profession": "PHYSIOTHERAPIST" },
+    "visser": { "name": "Lotte Visser", "profession": "DENTIST" },
+    "peters": { "name": "Lisa Peters", "profession": "DENTIST" }
+  }
+}

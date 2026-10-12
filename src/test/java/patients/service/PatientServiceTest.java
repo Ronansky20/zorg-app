@@ -7,9 +7,12 @@ import patients.model.Medication;
 import patients.model.Patient;
 import patients.model.PatientField;
 import patients.model.Profession;
+import patients.model.User;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,9 +25,23 @@ class PatientServiceTest {
     private InMemoryPatientRepository repository;
     private PatientService service;
 
+    private static final User OUTSIDER = new User("outsider", "Dr. Outsider", Profession.DOCTOR);
+
+    private static User user(Profession profession) {
+        return new User(profession.name().toLowerCase(), profession.label, profession);
+    }
+
+    private static Map<String, Boolean> teamOfEveryProfession() {
+        Map<String, Boolean> careTeam = new LinkedHashMap<>();
+        for (Profession profession : Profession.values()) {
+            careTeam.put(user(profession).id(), true);
+        }
+        return careTeam;
+    }
+
     private static Patient patient(String id, String firstName) {
         return new Patient(id, firstName, "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
-                new Patient.Specialists("Anon", "Anon", "Anon", "Anon"), List.of());
+                teamOfEveryProfession(), List.of());
     }
 
     private static Patient patient(String firstName) {
@@ -47,7 +64,7 @@ class PatientServiceTest {
     private void startWith(Patient... initial) {
         repository = new InMemoryPatientRepository(List.of(initial));
         service = new PatientService(repository);
-        service.login(Profession.DOCTOR);
+        service.login(user(Profession.DOCTOR));
         service.load();
     }
 
@@ -55,7 +72,7 @@ class PatientServiceTest {
     void setUp() {
         repository = new InMemoryPatientRepository();
         service = new PatientService(repository);
-        service.login(Profession.DOCTOR);
+        service.login(user(Profession.DOCTOR));
     }
 
     @Test
@@ -132,7 +149,7 @@ class PatientServiceTest {
     @Test
     void addIsRejectedForProfessionsOtherThanDoctor() {
         for (Profession profession : List.of(Profession.PHARMACIST, Profession.PHYSIOTHERAPIST, Profession.DENTIST)) {
-            service.login(profession);
+            service.login(user(profession));
 
             assertThrows(SecurityException.class, () -> service.add(patient("John")));
         }
@@ -175,7 +192,7 @@ class PatientServiceTest {
             }
             for (PatientField field : PatientField.values()) {
                 startWith(patient("John"));
-                service.login(profession);
+                service.login(user(profession));
                 Patient updated = changeField(patient("John"), field);
 
                 if (FieldPermissions.canEdit(profession, field)) {
@@ -192,21 +209,61 @@ class PatientServiceTest {
     @Test
     void pharmacistCanNotEdit() {
         startWith(patient("John"));
-        service.login(Profession.PHARMACIST);
+        service.login(user(Profession.PHARMACIST));
 
         assertThrows(SecurityException.class,
                 () -> service.update(patient("John").withAddress("Oak Lane 1")));
     }
 
     @Test
-    void specialistsCanNotBeChanged() {
-        Patient original = patient("John");
-        startWith(original);
-        Patient updated = new Patient(original.id(), original.firstName(), original.lastName(),
-                original.birthDate(), original.weight(), original.height(), original.address(),
-                new Patient.Specialists("Someone else", "Anon", "Anon", "Anon"), original.medications());
+    void careTeamCanNotBeChanged() {
+        startWith(patient("John"));
+        Map<String, Boolean> biggerTeam = teamOfEveryProfession();
+        biggerTeam.put(OUTSIDER.id(), true);
 
-        assertThrows(SecurityException.class, () -> service.update(updated));
+        assertThrows(SecurityException.class, () -> service.update(patient("John").withCareTeam(biggerTeam)));
+        assertEquals(0, repository.saveCalls);
+    }
+
+    @Test
+    void addPutsTheCreatorOnTheCareTeam() {
+        service.login(OUTSIDER);
+
+        service.add(patient(null, "John").withCareTeam(Map.of("pharmacist", true)));
+
+        Patient added = repository.getStored().get(0);
+        assertTrue(added.hasMember(OUTSIDER.id()));
+        assertTrue(added.hasMember("pharmacist"));
+        assertEquals(List.of(added), service.getAll());
+    }
+
+    @Test
+    void nonMembersDoNotSeeThePatient() {
+        Patient johnsTeamOnly = patient("John");
+        Patient outsidersPatient = patient("Jane").withCareTeam(Map.of(OUTSIDER.id(), true));
+        startWith(johnsTeamOnly, outsidersPatient);
+
+        assertEquals(List.of(johnsTeamOnly), service.getAll());
+
+        service.login(OUTSIDER);
+        assertEquals(List.of(outsidersPatient), service.getAll());
+    }
+
+    @Test
+    void nonMembersCanNotEditThePatient() {
+        startWith(patient("John"));
+        service.login(OUTSIDER);
+
+        assertThrows(SecurityException.class,
+                () -> service.update(patient("John").withAddress("Oak Lane 1")));
+        assertEquals(0, repository.saveCalls);
+    }
+
+    @Test
+    void falseInTheCareTeamIsNotMembership() {
+        startWith(patient("John").withCareTeam(Map.of("doctor", false)));
+
+        assertTrue(service.getAll().isEmpty());
     }
 
     @Test
@@ -234,7 +291,7 @@ class PatientServiceTest {
         Patient updated = patient("John").withMedications(List.of(new Medication("Paracetamol", "500 mg", "3x daily")));
 
         for (Profession profession : List.of(Profession.PHARMACIST, Profession.PHYSIOTHERAPIST, Profession.DENTIST)) {
-            service.login(profession);
+            service.login(user(profession));
 
             assertThrows(SecurityException.class, () -> service.update(updated));
         }
@@ -246,7 +303,7 @@ class PatientServiceTest {
         service.add(patient("John"));
 
         for (Profession profession : Profession.values()) {
-            service.login(profession);
+            service.login(user(profession));
 
             assertEquals(List.of(patient("John")), service.getAll());
         }

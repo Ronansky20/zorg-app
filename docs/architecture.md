@@ -6,19 +6,23 @@ together once, in [App.java](../src/main/java/patients/App.java):
 
 ```java
 PatientRepository repository = new JsonPatientRepository(Paths.get("patients.json"));
+UserRepository userRepository = new JsonUserRepository(Paths.get("users.json"));
 PatientService service = new PatientService(repository);
-ConsoleUI ui = new ConsoleUI(service);
+UserService userService = new UserService(userRepository);
+ConsoleUI ui = new ConsoleUI(service, userService);
 ui.run();
 ```
 
 ```text
 ConsoleUI  ──►  PatientService  ──►  PatientRepository (interface)
- (I/O)           (list + rules)            │
-   │                  │                    └──► JsonPatientRepository (Gson + file)
-   │                  │
-   └──────────────────┴──► ProfessionPermissions  (profession → allowed actions)
+ (I/O)         (list + rules)             └──► JsonPatientRepository (patients.json)
+   │
+   ├──────►  UserService     ──►  UserRepository (interface)
+   │          (user lookups)              └──► JsonUserRepository (users.json)
+   │
+   └──────►  ProfessionPermissions / FieldPermissions  (profession → actions / fields)
 
-Patient / Patient.Specialists, Medication, Profession, Action, PatientField  (model types, used everywhere)
+Patient, User, Medication, Profession, Action, PatientField  (model types, used everywhere)
 ```
 
 Dependencies point in one direction only: the UI knows the service, the service
@@ -30,15 +34,23 @@ used. Nothing below the UI reads from `System.in` or writes to `System.out`.
 ### `model` — [Patient](../src/main/java/patients/model/Patient.java)
 
 An immutable `record` holding an `id`, `firstName`, `lastName`, `birthDate`, `weight`, `height`,
-`address`, a nested `Specialists` record (`doctor`, `pharmacist`,
-`physiotherapist`, `dentist`) and a list of
+`address`, a `careTeam` and a list of
 [Medication](../src/main/java/patients/model/Medication.java) records (`name`,
-`dosage`, `frequency`). The compact constructor turns a missing (`null`)
-medication list into an empty one, so older data files still load, and stores
-an unmodifiable copy. Its only behaviour is `age()`, derived from the date of birth and today's
-date, and `bmi()`, derived from weight and height. Neither is stored, so they can
-never drift out of sync with the fields they are computed from (a stored age
-would be wrong after the next birthday).
+`dosage`, `frequency`). The compact constructor turns a missing (`null`) care
+team or medication list into an empty one, so older data files still load, and
+stores unmodifiable copies. Its behaviour is `age()`, derived from the date of
+birth and today's date, `bmi()`, derived from weight and height, and
+`hasMember(userId)`. Age and BMI are not stored, so they can never drift out of
+sync with the fields they are computed from (a stored age would be wrong after
+the next birthday).
+
+The care team is a `Map<String, Boolean>` from user id to `true`, the usual way
+to store a set in Firebase. `hasMember` only counts entries that are `true`.
+Later, the database security rules can check `careTeam/<uid>` directly.
+
+[User](../src/main/java/patients/model/User.java) is a record of `id`, `name` and
+`profession`. The profession decides what a user may do; the care team decides
+which patients they may do it to.
 
 Records were chosen for the model because Gson can serialize them directly and
 because patients are values: to "change" one you create a new one with the
@@ -49,8 +61,8 @@ Two enums sit next to it, each with a human-readable `label` that the UI prints:
 
 - [Profession](../src/main/java/patients/model/Profession.java): `DOCTOR`, `PHARMACIST`,
   `PHYSIOTHERAPIST`, `DENTIST`. These are the roles a user can log in as.
-- [Action](../src/main/java/patients/model/Action.java): `VIEW_LIST`, `ADD_PATIENT`. These
-  are the things a user can do from the main menu.
+- [Action](../src/main/java/patients/model/Action.java): `VIEW_LIST`, `ADD_PATIENT`,
+  `EDIT_PATIENT`. These are the things a user can do from the main menu.
 
 ### `repository` — storage
 
@@ -93,29 +105,40 @@ future Firebase Realtime Database tree:
   message, so the interface stays free of checked exceptions and the UI can
   decide how to report them.
 
-Swapping storage means writing another `PatientRepository` (a database, a CSV
-file, an in-memory fake for tests) and changing the one line in `App`.
+[UserRepository](../src/main/java/patients/repository/UserRepository.java) is the
+read-only counterpart for accounts (`findAll()`, `findById(id)`).
+[JsonUserRepository](../src/main/java/patients/repository/JsonUserRepository.java)
+reads the committed `users.json`, shaped `{ "users": { "<id>": { "name": ..., "profession": ... } } }`.
+Both JSON repositories read their section through the package-private
+[JsonFiles](../src/main/java/patients/repository/JsonFiles.java)`.readSection(...)`, so
+the format checks above apply to both files.
+
+Swapping storage means writing another `PatientRepository` / `UserRepository` (a
+database, a CSV file, an in-memory fake for tests) and changing the lines in `App`.
 
 ### `service` — [PatientService](../src/main/java/patients/service/PatientService.java) and [ProfessionPermissions](../src/main/java/patients/service/ProfessionPermissions.java)
 
 `PatientService` keeps a cached list of patients for the UI to show, and the
-profession of the user currently logged in:
+user currently logged in:
 
-- `login(Profession)` sets the current profession. There is no password check;
-  it only selects which permissions apply.
+- `login(User)` sets the current user. There is no password check; the user's
+  profession selects which permissions apply and their id selects which
+  patients.
 - `load()` clears the cache and refills it from the repository, sorted by last
   name, then first name. The sort keeps the numbered lists in the UI stable
   whatever order the storage returns.
-- `add(Patient)` validates the patient, gives it a new id if it has none, saves
-  it through the repository straight away and appends it to the cache.
+- `add(Patient)` validates the patient, adds the current user to its care team,
+  gives it a new id if it has none, saves it through the repository straight
+  away and appends it to the cache.
 - `update(Patient)` saves a changed version of an existing patient. It looks up
-  the stored version by id and compares every `PatientField` (via
+  the stored version by id and refuses with `SecurityException` if the current
+  user is not on its care team. It then compares every `PatientField` (via
   `PatientField.valueOf`). If any changed field is not editable by the current
-  profession (`FieldPermissions.canEdit`), or the specialists changed, it throws
+  profession (`FieldPermissions.canEdit`), or the care team changed, it throws
   `SecurityException` and saves nothing. The UI only offers editable fields, but
   the service checks every field regardless.
-- `getAll()` returns `List.copyOf(...)`, an unmodifiable snapshot, so callers
-  cannot reach in and mutate the service's state.
+- `getAll()` returns an unmodifiable list of only the patients whose care team
+  includes the current user.
 
 `add`, `update` and `getAll` are guarded by `requirePermission(Action)`, which
 throws `IllegalStateException` if nobody is logged in and `SecurityException`
@@ -123,6 +146,10 @@ if the current profession may not perform that action. `add` and `update` also
 validate the patient (first and last name not blank, weight and height above 0)
 and throw `IllegalArgumentException` otherwise; this also keeps `bmi()` finite.
 `load` is not guarded.
+
+[UserService](../src/main/java/patients/service/UserService.java) caches the
+accounts for the UI: `getAll()` for the login list, `getByProfession(...)` for
+picking a care team, and `findById(...)` to show team members by name.
 
 `ProfessionPermissions` is a static `EnumMap<Profession, Set<Action>>`, the single
 source of truth for who may do what. `isAllowed(profession, action)` answers one
@@ -141,10 +168,11 @@ another session wrote in the meantime.
 
 All console interaction and all parsing. `run()` is the whole session:
 
-1. `askProfession()` lists the professions and re-prompts until a valid number is
+1. `loadUsers()` loads the accounts; with none, the app says so and stops.
+2. `askUser()` lists the accounts and re-prompts until a valid number is
    chosen, then calls `service.login(...)`.
-2. `loadPatients()` loads the file, printing a warning on `UncheckedIOException`.
-3. `mainMenu(profession)` loops over a numbered menu built from
+3. `loadPatients()` loads the file, printing a warning on `UncheckedIOException`.
+4. `mainMenu(profession)` loops over a numbered menu built from
    `ProfessionPermissions.getAllowedActions(...)`, with `0` to quit. The chosen
    `Action` is dispatched in a `switch`. A `SecurityException` or
    `IllegalArgumentException` from the service is printed, and so is an
@@ -163,8 +191,9 @@ is the only place that formats output.
 | --- | --- |
 | New patient field | `Patient` record (and its `withX` methods) + the prompts in `readPatient()`; if users should see or edit it, a `PatientField` constant with its `valueOf` case and an entry in `FieldPermissions`. Old JSON records simply leave it at its default |
 | New menu action (search, edit, delete) | a new `Action` constant; grant it to professions in `ProfessionPermissions`; a guarded method on `PatientService` (`requirePermission(...)`); a `case` in `ConsoleUI.mainMenu()` |
-| New profession | a new `Profession` constant, its entry in `ProfessionPermissions`, and a case in `ConsoleUI.professionSwitch()` |
+| New profession | a new `Profession` constant, its entries in `ProfessionPermissions` and `FieldPermissions`, and accounts with it in `users.json`. The add-patient flow asks for one team member per profession automatically |
+| New user account | an entry in `users.json` |
 | Change who may do what | `ProfessionPermissions` only. The menu and the service checks both read from it |
 | Different storage (DB, CSV) | new `PatientRepository` implementation (reuse `GsonFactory` for JSON); swap the one line in `App` |
 | Validation | `PatientService.validate()` if it is a rule about patients; `ConsoleUI` if it is about re-prompting input |
-| Tests | under `src/test/java`, mirroring `src/main/java`. [InMemoryPatientRepository](../src/test/java/patients/service/InMemoryPatientRepository.java) lets `PatientService` be tested without touching the filesystem; remember to `login(...)` first |
+| Tests | under `src/test/java`, mirroring `src/main/java`. [InMemoryPatientRepository](../src/test/java/patients/service/InMemoryPatientRepository.java) lets `PatientService` be tested without touching the filesystem; remember to `login(...)` first, as a user on the patient's care team |
