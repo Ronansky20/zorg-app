@@ -14,7 +14,6 @@ public record Patient(
         Specialists specialists,
         List<Medication> medications) {
 
-    // Gson passes null for a missing "medications" key, so older data files load with an empty list.
     public Patient {
         medications = medications == null ? List.of() : List.copyOf(medications);
     }
