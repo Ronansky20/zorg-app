@@ -2,6 +2,7 @@ package patients.model;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.List;
 
 public record Patient(
         String firstName,
@@ -10,7 +11,83 @@ public record Patient(
         double weight,
         double height,
         String address,
-        Specialists specialists) {
+        Specialists specialists,
+        List<Medication> medications) {
+
+    // Gson passes null for a missing "medications" key, so older data files load with an empty list.
+    public Patient {
+        medications = medications == null ? List.of() : List.copyOf(medications);
+    }
+
+    public Patient withFirstName(String newFirstName) {
+        return new Patient(
+                newFirstName, this.lastName(),
+                this.birthDate(),
+                this.weight(), this.height(),
+                this.address(),
+                this.specialists(),
+                this.medications());
+    }
+
+    public Patient withLastName(String newLastName) {
+        return new Patient(
+                this.firstName(), newLastName,
+                this.birthDate(),
+                this.weight(), this.height(),
+                this.address(),
+                this.specialists(),
+                this.medications());
+    }
+
+    public Patient withBirthDate(LocalDate newBirthDate) {
+        return new Patient(
+                this.firstName(), this.lastName(),
+                newBirthDate,
+                this.weight(), this.height(),
+                this.address(),
+                this.specialists(),
+                this.medications());
+    }
+
+    public Patient withWeight(double newWeight) {
+        return new Patient(
+                this.firstName(), this.lastName(),
+                this.birthDate(),
+                newWeight, this.height(),
+                this.address(),
+                this.specialists(),
+                this.medications());
+    }
+
+    public Patient withHeight(double newHeight) {
+        return new Patient(
+                this.firstName(), this.lastName(),
+                this.birthDate(),
+                this.weight(), newHeight,
+                this.address(),
+                this.specialists(),
+                this.medications());
+    }
+
+    public Patient withAddress(String newAddress) {
+        return new Patient(
+                this.firstName(), this.lastName(),
+                this.birthDate(),
+                this.weight(), this.height(),
+                newAddress,
+                this.specialists(),
+                this.medications());
+    }
+
+    public Patient withMedications(List<Medication> newMedications) {
+        return new Patient(
+                this.firstName(), this.lastName(),
+                this.birthDate(),
+                this.weight(), this.height(),
+                this.address(),
+                this.specialists(),
+                newMedications);
+    }
 
     public double bmi() {
         return weight / (height * height);
@@ -28,5 +105,6 @@ public record Patient(
             String doctor,
             String pharmacist,
             String physiotherapist,
-            String dentist) {}
+            String dentist) {
+    }
 }

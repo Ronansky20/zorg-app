@@ -18,7 +18,7 @@ ConsoleUI  ──►  PatientService  ──►  PatientRepository (interface)
    │                  │
    └──────────────────┴──► ProfessionPermissions  (profession → allowed actions)
 
-Patient / Patient.Specialists, Profession, Action  (model types, used everywhere)
+Patient / Patient.Specialists, Medication, Profession, Action, PatientField  (model types, used everywhere)
 ```
 
 Dependencies point in one direction only: the UI knows the service, the service
@@ -30,8 +30,12 @@ used. Nothing below the UI reads from `System.in` or writes to `System.out`.
 ### `model` — [Patient](../src/main/java/patients/model/Patient.java)
 
 An immutable `record` holding `firstName`, `lastName`, `birthDate`, `weight`, `height`,
-`address` and a nested `Specialists` record (`doctor`, `pharmacist`,
-`physiotherapist`, `dentist`). Its only behaviour is `age()`, derived from the date of birth and today's
+`address`, a nested `Specialists` record (`doctor`, `pharmacist`,
+`physiotherapist`, `dentist`) and a list of
+[Medication](../src/main/java/patients/model/Medication.java) records (`name`,
+`dosage`, `frequency`). The compact constructor turns a missing (`null`)
+medication list into an empty one, so older data files still load, and stores
+an unmodifiable copy. Its only behaviour is `age()`, derived from the date of birth and today's
 date, and `bmi()`, derived from weight and height. Neither is stored, so they can
 never drift out of sync with the fields they are computed from (a stored age
 would be wrong after the next birthday).

@@ -1,6 +1,7 @@
 package patients.service;
 
 import patients.model.Patient;
+import patients.model.PatientField;
 import patients.model.Profession;
 import patients.model.Action;
 import patients.repository.PatientRepository;
@@ -23,7 +24,6 @@ public class PatientService {
         }
     }
 
-    
     public void login(Profession profession) {
         this.currentProfession = profession;
     }
@@ -40,6 +40,19 @@ public class PatientService {
     public void add(Patient patient) {
         requirePermission(Action.ADD_PATIENT);
         patients.add(patient);
+    }
+
+    public void update(Patient oldPatient, Patient updatedPatient, PatientField patientField) {
+        requirePermission(Action.EDIT_PATIENT);
+        if (!FieldPermissions.canEdit(currentProfession, patientField)) {
+            throw new SecurityException("You do not have the permission to edit " + patientField.label);
+        }
+        int patientPosition = patients.indexOf(oldPatient);
+        if (patientPosition == -1) {
+            throw new IllegalArgumentException("Patient not found");
+        } else {
+            patients.set(patientPosition, updatedPatient);
+        }
     }
 
     public List<Patient> getAll() {
