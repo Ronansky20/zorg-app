@@ -1,5 +1,6 @@
 package patients.ui;
 
+import patients.model.Medication;
 import patients.model.Patient;
 import patients.model.PatientField;
 import patients.model.Profession;
@@ -78,10 +79,10 @@ public class ConsoleUI {
                         service.add(readPatient());
                         break;
                     case EDIT_PATIENT:
-                        System.out.println(false);
+                        editPatient(profession);
                         break;
                 }
-            } catch (SecurityException e) {
+            } catch (SecurityException | IllegalArgumentException e) {
                 System.out.println(e.getMessage());
             }
         }
@@ -142,7 +143,28 @@ public class ConsoleUI {
                 readLine("Enter the patient's physiotherapist: "),
                 readLine("Enter the patient's dentist: "));
 
-        return new Patient(firstName, lastName, birthDate, weight, height, address, specialists);
+        List<Medication> medications = readMedications();
+
+        return new Patient(firstName, lastName, birthDate, weight, height, address, specialists, medications);
+    }
+
+    private List<Medication> readMedications() {
+        List<Medication> medications = new ArrayList<>();
+        while (readYesNo("Add medication? (y/n)")) {
+            medications.add(readMedication());
+        }
+        return medications;
+    }
+
+    private Medication readMedication() {
+        String name = readLine("Enter the medication name: ");
+        while (name.isEmpty()) {
+            System.out.println("The medication name can't be empty, try again.");
+            name = readLine("Enter the medication name: ");
+        }
+        String dosage = readLine("Enter the dosage (e.g. 500 mg): ");
+        String frequency = readLine("Enter the frequency (e.g. 3x daily): ");
+        return new Medication(name, dosage, frequency);
     }
 
     private void printPatients(Profession profession) {
@@ -163,7 +185,23 @@ public class ConsoleUI {
             case WEIGHT -> String.valueOf(patient.weight());
             case HEIGHT -> String.valueOf(patient.height());
             case ADDRESS -> patient.address();
+            case MEDICATION -> formatMedications(patient.medications());
         };
+    }
+
+    private String formatMedications(List<Medication> medications) {
+        if (medications.isEmpty()) {
+            return "none";
+        }
+        List<String> descriptions = new ArrayList<>();
+        for (Medication medication : medications) {
+            descriptions.add(formatMedication(medication));
+        }
+        return String.join("; ", descriptions);
+    }
+
+    private String formatMedication(Medication medication) {
+        return medication.name() + " " + medication.dosage() + ", " + medication.frequency();
     }
 
     private void savePatients() {
@@ -171,6 +209,160 @@ public class ConsoleUI {
             service.save();
         } catch (UncheckedIOException e) {
             System.out.println("Error: " + e.getMessage());
+        }
+    }
+
+    private void editPatient(Profession profession) {
+        Patient oldPatient = choosePatient();
+        if (oldPatient == null) {
+            return;
+        }
+
+        PatientField patientField =  chooseField(profession, oldPatient);
+
+        if (patientField == null) {
+            return;
+        }
+
+        Patient updatedPatient = buildUpdatedPatient(oldPatient, patientField);
+        if (updatedPatient == null) {
+            return;
+        }
+        service.update(oldPatient, updatedPatient, patientField);
+        savePatients();
+
+        System.out.println("Patient Updated");
+    }
+
+    private Patient choosePatient() {
+        List<Patient> possiblePatients = service.getAll(); 
+        if (possiblePatients.isEmpty()) {
+            System.out.println("No patients found");
+            return null;
+        }
+        while (true) {
+            System.out.println("0. Back");
+            for (int i = 0; i < possiblePatients.size(); i++) {
+                System.out.println((i + 1) + ". " + possiblePatients.get(i).firstName() + " " + possiblePatients.get(i).lastName());
+            }
+            int patientChoice = readInt("What patient would you like to edit?");
+
+            if (patientChoice < 0 || patientChoice > possiblePatients.size()) {
+                System.out.println("Invalid choice. Try again.");
+                continue;
+            }
+
+            if (patientChoice == 0) {
+                return null;
+            }
+
+            int patientNumber = patientChoice - 1;
+
+            Patient chosenPatient = possiblePatients.get(patientNumber);
+
+            return chosenPatient;
+        }
+    }
+
+    private PatientField chooseField(Profession profession, Patient patient) {
+        List<PatientField> editableFields = new ArrayList<>(FieldPermissions.getEditableFields(profession));
+        if (editableFields.isEmpty()) {
+            System.out.println("You can't edit any fields");
+            return null;
+        }
+        while (true) {
+            System.out.println("0. Back");
+            for (int i = 0; i < editableFields.size(); i++) {
+                PatientField field = editableFields.get(i);
+                System.out.println((i + 1) + ". " + field.label + ": " + fieldValue(patient, field));
+            }
+            int fieldChoice = readInt("Which field would you like to edit?");
+
+            if (fieldChoice < 0 || fieldChoice > editableFields.size()) {
+                System.out.println("Invalid choice. Try again.");
+                continue;
+            }
+
+            if (fieldChoice == 0) { return null; }
+
+            int fieldNumber = fieldChoice - 1;
+
+            PatientField chosenField = editableFields.get(fieldNumber);
+
+            return chosenField;
+        }
+    }
+
+    private Patient buildUpdatedPatient(Patient oldPatient, PatientField field) {
+        String prompt = "New " + field.label + ": ";
+        return switch (field) {
+            case FIRST_NAME -> oldPatient.withFirstName(readLine(prompt));
+            case LAST_NAME -> oldPatient.withLastName(readLine(prompt));
+            case DATE_OF_BIRTH -> oldPatient.withBirthDate(readBirthDate(prompt));
+            case WEIGHT -> oldPatient.withWeight(readDouble(prompt));
+            case HEIGHT -> oldPatient.withHeight(readDouble(prompt));
+            case ADDRESS -> oldPatient.withAddress(readLine(prompt));
+            case MEDICATION -> editMedications(oldPatient);
+        };
+    }
+
+    // Returns null when nothing was changed (Back, or nothing to change or remove).
+    private Patient editMedications(Patient oldPatient) {
+        List<Medication> medications = new ArrayList<>(oldPatient.medications());
+        while (true) {
+            System.out.println("0. Back");
+            System.out.println("1. Add medication");
+            System.out.println("2. Change medication");
+            System.out.println("3. Remove medication");
+            int choice = readInt("What would you like to do?");
+
+            switch (choice) {
+                case 0:
+                    return null;
+                case 1:
+                    medications.add(readMedication());
+                    return oldPatient.withMedications(medications);
+                case 2: {
+                    int index = chooseMedication(medications, "Which medication would you like to change?");
+                    if (index == -1) {
+                        return null;
+                    }
+                    medications.set(index, readMedication());
+                    return oldPatient.withMedications(medications);
+                }
+                case 3: {
+                    int index = chooseMedication(medications, "Which medication would you like to remove?");
+                    if (index == -1) {
+                        return null;
+                    }
+                    medications.remove(index);
+                    return oldPatient.withMedications(medications);
+                }
+                default:
+                    System.out.println("Invalid choice. Try again.");
+            }
+        }
+    }
+
+    // Returns the index of the chosen medication, or -1 for Back or when there is none.
+    private int chooseMedication(List<Medication> medications, String prompt) {
+        if (medications.isEmpty()) {
+            System.out.println("No medication recorded");
+            return -1;
+        }
+        while (true) {
+            System.out.println("0. Back");
+            for (int i = 0; i < medications.size(); i++) {
+                System.out.println((i + 1) + ". " + formatMedication(medications.get(i)));
+            }
+            int medicationChoice = readInt(prompt);
+
+            if (medicationChoice < 0 || medicationChoice > medications.size()) {
+                System.out.println("Invalid choice. Try again.");
+                continue;
+            }
+
+            return medicationChoice - 1;
         }
     }
 
@@ -186,6 +378,19 @@ public class ConsoleUI {
             } catch (NumberFormatException e) {
                 System.out.println("That's not a whole number, try again.");
             }
+        }
+    }
+
+    private boolean readYesNo(String prompt) {
+        while (true) {
+            String answer = readLine(prompt).toLowerCase();
+            if (answer.equals("y") || answer.equals("yes")) {
+                return true;
+            }
+            if (answer.equals("n") || answer.equals("no")) {
+                return false;
+            }
+            System.out.println("Please answer y or n.");
         }
     }
 

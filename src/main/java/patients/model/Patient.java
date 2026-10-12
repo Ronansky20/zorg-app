@@ -2,6 +2,7 @@ package patients.model;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.List;
 
 public record Patient(
         String firstName,
@@ -10,7 +11,12 @@ public record Patient(
         double weight,
         double height,
         String address,
-        Specialists specialists) {
+        Specialists specialists,
+        List<Medication> medications) {
+
+    public Patient {
+        medications = medications == null ? List.of() : List.copyOf(medications);
+    }
 
     public Patient withFirstName(String newFirstName) {
         return new Patient(
@@ -18,7 +24,8 @@ public record Patient(
                 this.birthDate(),
                 this.weight(), this.height(),
                 this.address(),
-                this.specialists());
+                this.specialists(),
+                this.medications());
     }
 
     public Patient withLastName(String newLastName) {
@@ -27,7 +34,8 @@ public record Patient(
                 this.birthDate(),
                 this.weight(), this.height(),
                 this.address(),
-                this.specialists());
+                this.specialists(),
+                this.medications());
     }
 
     public Patient withBirthDate(LocalDate newBirthDate) {
@@ -36,7 +44,8 @@ public record Patient(
                 newBirthDate,
                 this.weight(), this.height(),
                 this.address(),
-                this.specialists());
+                this.specialists(),
+                this.medications());
     }
 
     public Patient withWeight(double newWeight) {
@@ -45,7 +54,8 @@ public record Patient(
                 this.birthDate(),
                 newWeight, this.height(),
                 this.address(),
-                this.specialists());
+                this.specialists(),
+                this.medications());
     }
 
     public Patient withHeight(double newHeight) {
@@ -54,7 +64,8 @@ public record Patient(
                 this.birthDate(),
                 this.weight(), newHeight,
                 this.address(),
-                this.specialists());
+                this.specialists(),
+                this.medications());
     }
 
     public Patient withAddress(String newAddress) {
@@ -63,7 +74,18 @@ public record Patient(
                 this.birthDate(),
                 this.weight(), this.height(),
                 newAddress,
-                this.specialists());
+                this.specialists(),
+                this.medications());
+    }
+
+    public Patient withMedications(List<Medication> newMedications) {
+        return new Patient(
+                this.firstName(), this.lastName(),
+                this.birthDate(),
+                this.weight(), this.height(),
+                this.address(),
+                this.specialists(),
+                newMedications);
     }
 
     public double bmi() {

@@ -3,7 +3,9 @@ package patients.service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import patients.model.Medication;
 import patients.model.Patient;
+import patients.model.PatientField;
 import patients.model.Profession;
 
 import java.time.LocalDate;
@@ -20,7 +22,7 @@ class PatientServiceTest {
 
     private static Patient patient(String firstName) {
         return new Patient(firstName, "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
-                new Patient.Specialists("Anon", "Anon", "Anon", "Anon"));
+                new Patient.Specialists("Anon", "Anon", "Anon", "Anon"), List.of());
     }
 
     @BeforeEach
@@ -100,6 +102,32 @@ class PatientServiceTest {
 
             assertThrows(SecurityException.class, () -> service.add(patient("John")));
         }
+    }
+
+    @Test
+    void doctorCanUpdateMedication() {
+        Patient original = patient("John");
+        service.add(original);
+        Patient updated = original.withMedications(List.of(new Medication("Paracetamol", "500 mg", "3x daily")));
+
+        service.update(original, updated, PatientField.MEDICATION);
+
+        assertEquals(List.of(updated), service.getAll());
+    }
+
+    @Test
+    void medicationUpdateIsRejectedForProfessionsOtherThanDoctor() {
+        Patient original = patient("John");
+        service.add(original);
+        Patient updated = original.withMedications(List.of(new Medication("Paracetamol", "500 mg", "3x daily")));
+
+        for (Profession profession : List.of(Profession.PHARMACIST, Profession.PHYSIOTHERAPIST, Profession.DENTIST)) {
+            service.login(profession);
+
+            assertThrows(SecurityException.class,
+                    () -> service.update(original, updated, PatientField.MEDICATION));
+        }
+        assertEquals(List.of(original), service.getAll());
     }
 
     @Test

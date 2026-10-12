@@ -22,7 +22,8 @@ public class FieldPermissions {
                         PatientField.DATE_OF_BIRTH,
                         PatientField.WEIGHT,
                         PatientField.HEIGHT,
-                        PatientField.ADDRESS));
+                        PatientField.ADDRESS,
+                        PatientField.MEDICATION));
         editableFields.put(
                 Profession.PHARMACIST,
                 EnumSet.noneOf(
@@ -50,13 +51,15 @@ public class FieldPermissions {
                         PatientField.DATE_OF_BIRTH,
                         PatientField.WEIGHT,
                         PatientField.HEIGHT,
-                        PatientField.ADDRESS));
+                        PatientField.ADDRESS,
+                        PatientField.MEDICATION));
         viewableFields.put(
                 Profession.PHARMACIST,
                 EnumSet.of(
                         PatientField.FIRST_NAME,
                         PatientField.LAST_NAME,
-                        PatientField.DATE_OF_BIRTH));
+                        PatientField.DATE_OF_BIRTH,
+                        PatientField.MEDICATION));
         viewableFields.put(Profession.PHYSIOTHERAPIST,
                 EnumSet.of(
                         PatientField.FIRST_NAME,
@@ -64,7 +67,8 @@ public class FieldPermissions {
                         PatientField.DATE_OF_BIRTH,
                         PatientField.WEIGHT,
                         PatientField.HEIGHT,
-                        PatientField.ADDRESS));
+                        PatientField.ADDRESS,
+                        PatientField.MEDICATION));
         viewableFields.put(
                 Profession.DENTIST,
                 EnumSet.of(
@@ -73,7 +77,8 @@ public class FieldPermissions {
                         PatientField.DATE_OF_BIRTH,
                         PatientField.WEIGHT,
                         PatientField.HEIGHT,
-                        PatientField.ADDRESS));
+                        PatientField.ADDRESS,
+                        PatientField.MEDICATION));
     }
 
     public static boolean canEdit(Profession profession, PatientField patientField) {
