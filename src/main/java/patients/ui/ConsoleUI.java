@@ -177,18 +177,91 @@ public class ConsoleUI {
     private void editPatient(Profession profession) {
         Patient oldPatient = choosePatient();
         if (oldPatient == null) {
-            System.out.println("No patients found.");
             return;
         }
+
+        PatientField patientField =  chooseField(profession, oldPatient);
+
+        if (patientField == null) {
+            return;
+        }
+
+        Patient updatedPatient = buildUpdatedPatient(oldPatient, patientField);
+        service.update(oldPatient, updatedPatient, patientField);
+        savePatients();
+
+        System.out.println("Patient Updated");
     }
 
     private Patient choosePatient() {
         List<Patient> possiblePatients = service.getAll(); 
-        while (true) {
-            for (int i = 0; i < possiblePatients.size(); i++) {
-                
-            }
+        if (possiblePatients.isEmpty()) {
+            System.out.println("No patients found");
+            return null;
         }
+        while (true) {
+            System.out.println("0. Back");
+            for (int i = 0; i < possiblePatients.size(); i++) {
+                System.out.println((i + 1) + ". " + possiblePatients.get(i).firstName() + " " + possiblePatients.get(i).lastName());
+            }
+            int patientChoice = readInt("What patient would you like to edit?");
+
+            if (patientChoice < 0 || patientChoice > possiblePatients.size()) {
+                System.out.println("Invalid choice. Try again.");
+                continue;
+            }
+
+            if (patientChoice == 0) {
+                return null;
+            }
+
+            int patientNumber = patientChoice - 1;
+
+            Patient chosenPatient = possiblePatients.get(patientNumber);
+
+            return chosenPatient;
+        }
+    }
+
+    private PatientField chooseField(Profession profession, Patient patient) {
+        List<PatientField> editableFields = new ArrayList<>(FieldPermissions.getEditableFields(profession));
+        if (editableFields.isEmpty()) {
+            System.out.println("You can't edit any fields");
+            return null;
+        }
+        while (true) {
+            System.out.println("0. Back");
+            for (int i = 0; i < editableFields.size(); i++) {
+                PatientField field = editableFields.get(i);
+                System.out.println((i + 1) + ". " + field.label + ": " + fieldValue(patient, field));
+            }
+            int fieldChoice = readInt("Which field would you like to edit?");
+
+            if (fieldChoice < 0 || fieldChoice > editableFields.size()) {
+                System.out.println("Invalid choice. Try again.");
+                continue;
+            }
+
+            if (fieldChoice == 0) { return null; }
+
+            int fieldNumber = fieldChoice - 1;
+
+            PatientField chosenField = editableFields.get(fieldNumber);
+
+            return chosenField;
+        }
+    }
+
+    private Patient buildUpdatedPatient(Patient oldPatient, PatientField field) {
+        String prompt = "New " + field.label + ": ";
+        return switch (field) {
+            case FIRST_NAME -> oldPatient.withFirstName(readLine(prompt));
+            case LAST_NAME -> oldPatient.withLastName(readLine(prompt));
+            case DATE_OF_BIRTH -> oldPatient.withBirthDate(readBirthDate(prompt));
+            case WEIGHT -> oldPatient.withWeight(readDouble(prompt));
+            case HEIGHT -> oldPatient.withHeight(readDouble(prompt));
+            case ADDRESS -> oldPatient.withAddress(readLine(prompt));
+        };
     }
 
     private String readLine(String prompt) {
