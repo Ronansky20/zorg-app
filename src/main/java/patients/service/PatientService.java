@@ -43,8 +43,11 @@ public class PatientService {
     }
 
     public void load() {
+        if (currentUser == null) {
+            throw new IllegalStateException("No user is logged in");
+        }
         patients.clear();
-        patients.addAll(repository.findAll());
+        patients.addAll(repository.findAllForUser(currentUser.id()));
         patients.sort(BY_NAME);
     }
 

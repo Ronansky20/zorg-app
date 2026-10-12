@@ -209,9 +209,14 @@ public class ConsoleUI {
 
     private String formatCareTeam(Patient patient) {
         List<String> members = new ArrayList<>();
+        for (User user : userService.getAll()) {
+            if (patient.hasMember(user.id())) {
+                members.add(formatUser(user));
+            }
+        }
         for (String userId : patient.careTeam().keySet()) {
-            if (patient.hasMember(userId)) {
-                members.add(userService.findById(userId).map(this::formatUser).orElse(userId));
+            if (patient.hasMember(userId) && userService.findById(userId).isEmpty()) {
+                members.add(userId);
             }
         }
         return members.isEmpty() ? "none" : String.join(", ", members);

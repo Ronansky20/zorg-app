@@ -43,10 +43,10 @@ class UserServiceTest {
     }
 
     @Test
-    void getAllReturnsTheLoadedUsers() {
+    void getAllIsSortedByProfessionThenName() {
         service.load();
 
-        assertEquals(List.of(JANSEN, DE_VRIES, HENDRIKS), service.getAll());
+        assertEquals(List.of(JANSEN, HENDRIKS, DE_VRIES), service.getAll());
     }
 
     @Test

@@ -246,7 +246,26 @@ class PatientServiceTest {
         assertEquals(List.of(johnsTeamOnly), service.getAll());
 
         service.login(OUTSIDER);
+        service.load();
         assertEquals(List.of(outsidersPatient), service.getAll());
+    }
+
+    @Test
+    void loadOnlyReadsTheLoggedInUsersPatients() {
+        Patient outsidersPatient = patient("Jane").withCareTeam(Map.of(OUTSIDER.id(), true));
+        startWith(patient("John"), outsidersPatient);
+        service.login(OUTSIDER);
+
+        assertEquals(List.of(), service.getAll());
+        service.load();
+        assertEquals(List.of(outsidersPatient), service.getAll());
+    }
+
+    @Test
+    void loadRequiresALoggedInUser() {
+        service = new PatientService(repository);
+
+        assertThrows(IllegalStateException.class, () -> service.load());
     }
 
     @Test

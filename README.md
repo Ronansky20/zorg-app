@@ -3,8 +3,8 @@
 A small Java console application for recording patients and their care team. You
 pick your profession, then use a menu to view the patient overview (with each
 patient's BMI) or add new patients — depending on what your profession is allowed
-to do. Everything is stored in a local JSON file so the data is still there the
-next time you run it.
+to do. Data is stored in local JSON files by default, or in a Firebase Realtime
+Database (see [Running against Firebase](#running-against-firebase)).
 
 ## Requirements
 
@@ -35,6 +35,42 @@ In VS Code, the Java extension imports the Gradle project automatically, so
 opening [src/main/java/patients/App.java](src/main/java/patients/App.java) and
 pressing **Run** also works.
 
+### Running against Firebase
+
+By default the app uses the local JSON files. Set `ZORG_FIREBASE_URL` to use a
+Firebase Realtime Database instead:
+
+| Variable | Meaning |
+| --- | --- |
+| `ZORG_FIREBASE_URL` | database URL, e.g. `http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb` for the emulator |
+| `ZORG_FIREBASE_TOKEN` | optional; sent as `?auth=...` (not needed for the emulator) |
+
+For development, use the **local emulator** (needs Node.js; the JDK you already
+have runs it). [firebase.json](firebase.json) configures it on port 9000, and a
+`demo-` project id keeps it fully offline:
+
+```bash
+npx -y firebase-tools@15.33.0 emulators:start --only database --project demo-zorg-app
+```
+
+Then, in another terminal:
+
+```bash
+ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" ./gradlew run -q --console=plain
+```
+
+(PowerShell: `$env:ZORG_FIREBASE_URL = "http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb"` first.)
+
+The emulator starts empty and forgets everything when it stops. Until the
+migration script exists, load the dummy accounts with:
+
+```bash
+curl -X PATCH -d @users.json "http://127.0.0.1:9000/.json?ns=demo-zorg-app-default-rtdb"
+```
+
+> Don't point the app at a real Firebase project yet: there are no database
+> security rules until Firebase Auth is added, and this is medical data.
+
 ## Tests
 
 Unit tests live under [src/test/java/](src/test/java), mirroring the
@@ -53,6 +89,17 @@ checks the output and the saved `patients.json`:
 ```bash
 ./scripts/smoke-test.sh
 ```
+
+With the emulator running (see [Running against Firebase](#running-against-firebase)),
+the same test runs through Firebase instead. It wipes the emulator's data first,
+and refuses any URL that isn't on localhost:
+
+```bash
+ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" ./scripts/smoke-test.sh
+```
+
+The Firebase classes also have unit tests that run against a small fake database
+server, so `./gradlew test` needs neither the emulator nor a network.
 
 Both run automatically on every pull request (and on pushes to `main`) via
 [.github/workflows/pr-checks.yml](.github/workflows/pr-checks.yml); the unit
@@ -304,6 +351,9 @@ src/main/java/patients/
 ├── repository/JsonFiles.java               shared "read one section of a JSON file" helper
 ├── repository/GsonFactory.java             shared Gson setup (ISO dates)
 ├── repository/Ids.java                     generates patient ids
+├── repository/FirebaseClient.java          Realtime Database REST client (java.net.http)
+├── repository/FirebasePatientRepository.java  patients + /userPatients index in Firebase
+├── repository/FirebaseUserRepository.java  reads /users from Firebase
 ├── service/PatientService.java             cached list, login, permission and care team checks, validation
 ├── service/UserService.java                cached user list, lookups by id and profession
 ├── service/ProfessionPermissions.java      which profession may perform which action
@@ -331,8 +381,10 @@ Known gaps, so nobody goes looking for features that are not there yet:
   yet.
 - **No duplicate detection** — three identical "John Doe" records are three
   separate patients, each with its own id.
-- **One user at a time.** Each save rewrites the whole file, so two sessions
-  running at once can still overwrite each other's changes. That goes away with
-  the move to Firebase.
+- **One user at a time on JSON.** Each save rewrites the whole file, so two
+  sessions running at once can still overwrite each other's changes. On Firebase
+  each save only writes that one patient.
+- **No migration from JSON to Firebase yet.** Data entered in one backend isn't
+  visible in the other.
 - **The console UI has no tests.** The model, repository, service and permissions
   are covered under [src/test/java/](src/test/java).

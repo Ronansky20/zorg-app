@@ -5,6 +5,7 @@ import patients.model.User;
 import patients.repository.UserRepository;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,8 @@ public class UserService {
     public void load() {
         users.clear();
         users.addAll(repository.findAll());
+        users.sort(Comparator.comparing(User::profession)
+                .thenComparing(User::name, String.CASE_INSENSITIVE_ORDER));
     }
 
     public List<User> getAll() {

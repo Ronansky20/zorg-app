@@ -4,9 +4,10 @@ The app is deliberately split into four layers so that the console, the business
 rules and the storage format can change independently. Everything is wired
 together once, in [App.java](../src/main/java/patients/App.java):
 
+it picks the Firebase repositories when `ZORG_FIREBASE_URL` is set and the JSON
+ones otherwise, then wires them into the services and the UI:
+
 ```java
-PatientRepository repository = new JsonPatientRepository(Paths.get("patients.json"));
-UserRepository userRepository = new JsonUserRepository(Paths.get("users.json"));
 PatientService service = new PatientService(repository);
 UserService userService = new UserService(userRepository);
 ConsoleUI ui = new ConsoleUI(service, userService);
@@ -15,10 +16,11 @@ ui.run();
 
 ```text
 ConsoleUI  ──►  PatientService  ──►  PatientRepository (interface)
- (I/O)         (list + rules)             └──► JsonPatientRepository (patients.json)
-   │
-   ├──────►  UserService     ──►  UserRepository (interface)
-   │          (user lookups)              └──► JsonUserRepository (users.json)
+ (I/O)         (list + rules)             ├──► JsonPatientRepository (patients.json)
+   │                                      └──► FirebasePatientRepository ─┐
+   ├──────►  UserService     ──►  UserRepository (interface)              ├─► FirebaseClient (REST)
+   │          (user lookups)              ├──► JsonUserRepository (users.json)
+   │                                      └──► FirebaseUserRepository ────┘
    │
    └──────►  ProfessionPermissions / FieldPermissions  (profession → actions / fields)
 
@@ -113,8 +115,50 @@ Both JSON repositories read their section through the package-private
 [JsonFiles](../src/main/java/patients/repository/JsonFiles.java)`.readSection(...)`, so
 the format checks above apply to both files.
 
+`PatientRepository` also has `findAllForUser(userId)`. By default it filters
+`findAll()` by care team membership, which is what the JSON repository uses.
+
+#### Firebase Realtime Database
+
+[FirebaseClient](../src/main/java/patients/repository/FirebaseClient.java) talks to
+the database's REST API with the JDK's `java.net.http.HttpClient`, so there is no
+Firebase SDK dependency. `get`, `put` and `patch` map to `GET`, `PUT` and `PATCH`
+on `<database url>/<path>.json`. Any query in the configured URL (such as the
+emulator's `?ns=...`) is kept, and the auth token is added as `auth=...`. The
+token comes from a `Supplier`, so it can change after login. A missing value
+comes back as `JsonNull`. A non-2xx response or a network error becomes an
+`UncheckedIOException` carrying the response body, so the UI reports it like any
+other storage error.
+
+The tree looks like this:
+
+```text
+/users/<userId>                 { name, profession }
+/patients/<patientId>           { firstName, ..., careTeam: { <userId>: true }, medications: [...] }
+/userPatients/<userId>/<patientId>: true
+```
+
+[FirebasePatientRepository](../src/main/java/patients/repository/FirebasePatientRepository.java):
+
+- `save()` is one multi-path `PATCH` on the root. It writes `/patients/<id>` and
+  an index entry `/userPatients/<member>/<id>` for every care team member. It
+  also deletes (`null`) the entries of members who were removed. A single
+  request means the patient and its index are updated together.
+- `findAllForUser()` reads `/userPatients/<userId>` and then fetches each patient.
+  It skips entries whose patient is gone or no longer lists the user. Reading
+  the whole of `/patients` is not an option once there are security rules,
+  because rules don't filter results: a read fails as soon as one patient in it
+  is off-limits.
+- `findAll()` still reads all of `/patients`. It is meant for admin tasks such
+  as the migration, not for the app.
+
+[FirebaseUserRepository](../src/main/java/patients/repository/FirebaseUserRepository.java)
+reads `/users`. Firebase returns keys in alphabetical order, so `UserService` and
+`PatientService` sort what they load. That keeps the numbered lists in the UI
+the same on both backends.
+
 Swapping storage means writing another `PatientRepository` / `UserRepository` (a
-database, a CSV file, an in-memory fake for tests) and changing the lines in `App`.
+database, a CSV file, an in-memory fake for tests) and choosing it in `App`.
 
 ### `service` — [PatientService](../src/main/java/patients/service/PatientService.java) and [ProfessionPermissions](../src/main/java/patients/service/ProfessionPermissions.java)
 
@@ -124,9 +168,10 @@ user currently logged in:
 - `login(User)` sets the current user. There is no password check; the user's
   profession selects which permissions apply and their id selects which
   patients.
-- `load()` clears the cache and refills it from the repository, sorted by last
-  name, then first name. The sort keeps the numbered lists in the UI stable
-  whatever order the storage returns.
+- `load()` clears the cache and refills it with the logged-in user's patients
+  (`repository.findAllForUser(...)`), sorted by last name, then first name. The
+  sort keeps the numbered lists in the UI stable whatever order the storage
+  returns. It needs a logged-in user, so it is called after `login`.
 - `add(Patient)` validates the patient, adds the current user to its care team,
   gives it a new id if it has none, saves it through the repository straight
   away and appends it to the cache.
@@ -148,8 +193,9 @@ and throw `IllegalArgumentException` otherwise; this also keeps `bmi()` finite.
 `load` is not guarded.
 
 [UserService](../src/main/java/patients/service/UserService.java) caches the
-accounts for the UI: `getAll()` for the login list, `getByProfession(...)` for
-picking a care team, and `findById(...)` to show team members by name.
+accounts for the UI, sorted by profession and then name: `getAll()` for the
+login list, `getByProfession(...)` for picking a care team, and `findById(...)`
+to show team members by name.
 
 `ProfessionPermissions` is a static `EnumMap<Profession, Set<Action>>`, the single
 source of truth for who may do what. `isAllowed(profession, action)` answers one
@@ -194,6 +240,7 @@ is the only place that formats output.
 | New profession | a new `Profession` constant, its entries in `ProfessionPermissions` and `FieldPermissions`, and accounts with it in `users.json`. The add-patient flow asks for one team member per profession automatically |
 | New user account | an entry in `users.json` |
 | Change who may do what | `ProfessionPermissions` only. The menu and the service checks both read from it |
-| Different storage (DB, CSV) | new `PatientRepository` implementation (reuse `GsonFactory` for JSON); swap the one line in `App` |
+| Different storage (DB, CSV) | new `PatientRepository` / `UserRepository` implementations (reuse `GsonFactory` for JSON); choose them in `App` |
+| New data in Firebase | the record type (Gson maps it); if users need to find it by something other than id, an index like `/userPatients` written in the same multi-path `PATCH` |
 | Validation | `PatientService.validate()` if it is a rule about patients; `ConsoleUI` if it is about re-prompting input |
-| Tests | under `src/test/java`, mirroring `src/main/java`. [InMemoryPatientRepository](../src/test/java/patients/service/InMemoryPatientRepository.java) lets `PatientService` be tested without touching the filesystem; remember to `login(...)` first, as a user on the patient's care team |
+| Tests | under `src/test/java`, mirroring `src/main/java`. [InMemoryPatientRepository](../src/test/java/patients/service/InMemoryPatientRepository.java) lets `PatientService` be tested without touching the filesystem; remember to `login(...)` first, as a user on the patient's care team. `FakeRealtimeDatabase` (a JDK `HttpServer` that mimics the REST API) tests the Firebase classes offline; `ZORG_FIREBASE_URL=<emulator> ./scripts/smoke-test.sh` runs the end-to-end test against the real emulator |
