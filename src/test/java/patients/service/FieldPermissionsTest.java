@@ -31,12 +31,26 @@ class FieldPermissionsTest {
     void viewableFieldsMatchExpectedTable() {
         assertEquals(EnumSet.allOf(PatientField.class),
                 FieldPermissions.getViewableFields(Profession.DOCTOR));
-        assertEquals(EnumSet.of(PatientField.FIRST_NAME, PatientField.LAST_NAME, PatientField.DATE_OF_BIRTH),
+        assertEquals(EnumSet.of(PatientField.FIRST_NAME, PatientField.LAST_NAME, PatientField.DATE_OF_BIRTH,
+                        PatientField.MEDICATION),
                 FieldPermissions.getViewableFields(Profession.PHARMACIST));
         assertEquals(EnumSet.allOf(PatientField.class),
                 FieldPermissions.getViewableFields(Profession.PHYSIOTHERAPIST));
         assertEquals(EnumSet.allOf(PatientField.class),
                 FieldPermissions.getViewableFields(Profession.DENTIST));
+    }
+
+    @ParameterizedTest
+    @EnumSource(Profession.class)
+    void onlyDoctorCanEditMedication(Profession profession) {
+        assertEquals(profession == Profession.DOCTOR,
+                FieldPermissions.canEdit(profession, PatientField.MEDICATION));
+    }
+
+    @ParameterizedTest
+    @EnumSource(Profession.class)
+    void everyProfessionCanViewMedication(Profession profession) {
+        assertTrue(FieldPermissions.canView(profession, PatientField.MEDICATION));
     }
 
     @ParameterizedTest

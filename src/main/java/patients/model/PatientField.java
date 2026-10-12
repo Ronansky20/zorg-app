@@ -6,7 +6,8 @@ public enum PatientField {
     DATE_OF_BIRTH("Date of birth"),
     WEIGHT("Weight"),
     HEIGHT("Height"),
-    ADDRESS("Address");
+    ADDRESS("Address"),
+    MEDICATION("Medication");
 
     public final String label;
 

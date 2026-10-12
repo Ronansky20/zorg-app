@@ -3,8 +3,12 @@ package patients.model;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PatientTest {
 
@@ -18,7 +22,7 @@ class PatientTest {
 
     private static Patient patientBornOn(LocalDate birthDate, double weight, double height) {
         return new Patient("John", "Doe", birthDate, weight, height, "Elm Street 58",
-                new Patient.Specialists("Anon", "Anon", "Anon", "Anon"));
+                new Patient.Specialists("Anon", "Anon", "Anon", "Anon"), List.of());
     }
 
     @Test
@@ -57,5 +61,49 @@ class PatientTest {
         Patient b = patientWith(70.0, 1.8);
 
         assertEquals(a, b);
+    }
+
+    private static final Medication PARACETAMOL = new Medication("Paracetamol", "500 mg", "3x daily");
+    private static final Medication IBUPROFEN = new Medication("Ibuprofen", "400 mg", "as needed");
+
+    @Test
+    void nullMedicationsBecomeAnEmptyList() {
+        Patient patient = new Patient("John", "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
+                new Patient.Specialists("Anon", "Anon", "Anon", "Anon"), null);
+
+        assertTrue(patient.medications().isEmpty());
+    }
+
+    @Test
+    void medicationsAreACopyThatCannotBeModified() {
+        List<Medication> original = new ArrayList<>(List.of(PARACETAMOL));
+        Patient patient = patientWith(70.0, 1.8).withMedications(original);
+
+        original.add(IBUPROFEN);
+
+        assertEquals(List.of(PARACETAMOL), patient.medications());
+        assertThrows(UnsupportedOperationException.class, () -> patient.medications().add(IBUPROFEN));
+    }
+
+    @Test
+    void withMedicationsReplacesOnlyMedications() {
+        Patient patient = patientWith(70.0, 1.8);
+
+        Patient updated = patient.withMedications(List.of(PARACETAMOL, IBUPROFEN));
+
+        assertEquals(List.of(PARACETAMOL, IBUPROFEN), updated.medications());
+        assertEquals(patient, updated.withMedications(List.of()));
+    }
+
+    @Test
+    void otherMutatorsKeepMedications() {
+        Patient patient = patientWith(70.0, 1.8).withMedications(List.of(PARACETAMOL));
+
+        assertEquals(List.of(PARACETAMOL), patient.withFirstName("Jane").medications());
+        assertEquals(List.of(PARACETAMOL), patient.withLastName("Smith").medications());
+        assertEquals(List.of(PARACETAMOL), patient.withBirthDate(LocalDate.of(2000, 1, 1)).medications());
+        assertEquals(List.of(PARACETAMOL), patient.withWeight(80.0).medications());
+        assertEquals(List.of(PARACETAMOL), patient.withHeight(1.9).medications());
+        assertEquals(List.of(PARACETAMOL), patient.withAddress("Oak Lane 1").medications());
     }
 }

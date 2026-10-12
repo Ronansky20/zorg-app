@@ -140,7 +140,37 @@ Enter the patient's doctor:
 Enter the patient's pharmacist:
 Enter the patient's physiotherapist:
 Enter the patient's dentist:
+Add medication? (y/n)
+Enter the medication name:
+Enter the dosage (e.g. 500 mg):
+Enter the frequency (e.g. 3x daily):
+Add medication? (y/n)
 ```
+
+The medication questions repeat until you answer `n`; answer `n` straight away
+to add a patient without medication.
+
+### Medication
+
+Each patient has a list of medications, each with a name, a dosage and a
+frequency. It is shown as one line when viewing patients:
+
+```text
+Medication: Paracetamol 500 mg, 3x daily; Ibuprofen 400 mg, as needed
+```
+
+| Profession | View medication | Edit medication |
+| --- | :---: | :---: |
+| Doctor | ✓ | ✓ |
+| Pharmacist | ✓ | — |
+| Physiotherapist | ✓ | — |
+| Dentist | ✓ | — |
+
+A doctor changes medication via **Edit Patient** → choose the patient →
+**Medication**, which opens a sub-menu to **Add**, **Change** (re-enter an entry)
+or **Remove** a medication. Who may see or edit it is defined in
+[FieldPermissions.java](src/main/java/patients/service/FieldPermissions.java) and
+enforced by `PatientService.update`.
 
 New patients are only kept in memory until you quit. Nothing is written to disk
 until then.
@@ -183,11 +213,21 @@ whose value is the list of patients:
         "pharmacist": "Anon",
         "physiotherapist": "Anon",
         "dentist": "Anon"
-      }
+      },
+      "medications": [
+        {
+          "name": "Paracetamol",
+          "dosage": "500 mg",
+          "frequency": "3x daily"
+        }
+      ]
     }
   ]
 }
 ```
+
+> Data files written before medication was added have no `medications` key.
+> They still load, with an empty medication list.
 
 > The specialist field used to be called `physician`. Data files written before
 > the rename still load, but that value is ignored (the physiotherapist comes
@@ -214,6 +254,7 @@ whose value is the list of patients:
 src/main/java/patients/
 ├── App.java                                entry point; wires the layers together
 ├── model/Patient.java                      Patient + nested Specialists records
+├── model/Medication.java                   one medication: name, dosage, frequency
 ├── model/Profession.java                   professions you can log in as
 ├── model/Action.java                       menu actions (view, add)
 ├── repository/PatientRepository.java       storage interface (loadAll/saveAll)

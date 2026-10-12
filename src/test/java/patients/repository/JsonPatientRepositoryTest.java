@@ -4,6 +4,7 @@ import com.google.gson.JsonSyntaxException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import patients.model.Medication;
 import patients.model.Patient;
 
 import java.io.IOException;
@@ -23,7 +24,8 @@ class JsonPatientRepositoryTest {
 
     private static Patient patient(String firstName) {
         return new Patient(firstName, "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
-                new Patient.Specialists("Doctor Anon", "Pharmacist Anon", "Physio Anon", "Dentist Anon"));
+                new Patient.Specialists("Doctor Anon", "Pharmacist Anon", "Physio Anon", "Dentist Anon"),
+                List.of(new Medication("Paracetamol", "500 mg", "3x daily")));
     }
 
     @Test
@@ -51,6 +53,39 @@ class JsonPatientRepositoryTest {
         new JsonPatientRepository(file).saveAll(List.of(patient("John")));
 
         assertTrue(Files.readString(file).contains("\"birthDate\": \"1995-06-15\""));
+    }
+
+    @Test
+    void medicationsAreStoredAndLoadedBack() throws IOException {
+        Path file = tempDir.resolve("patients.json");
+        new JsonPatientRepository(file).saveAll(List.of(patient("John")));
+
+        assertTrue(Files.readString(file).contains("\"name\": \"Paracetamol\""));
+        assertEquals(List.of(new Medication("Paracetamol", "500 mg", "3x daily")),
+                new JsonPatientRepository(file).loadAll().get(0).medications());
+    }
+
+    @Test
+    void fileWithoutMedicationsLoadsWithAnEmptyList() throws IOException {
+        Path file = tempDir.resolve("legacy.json");
+        Files.writeString(file, """
+                {
+                  "abc": [
+                    {
+                      "firstName": "John",
+                      "lastName": "Doe",
+                      "birthDate": "1995-06-15",
+                      "weight": 70.0,
+                      "height": 1.8,
+                      "address": "Elm Street 58"
+                    }
+                  ]
+                }
+                """);
+
+        List<Patient> loaded = new JsonPatientRepository(file).loadAll();
+
+        assertTrue(loaded.get(0).medications().isEmpty());
     }
 
     @Test
