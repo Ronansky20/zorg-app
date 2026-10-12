@@ -42,8 +42,6 @@ public class ConsoleUI {
         System.out.println("Welcome to the patient management system!");
 
         mainMenu(profession);
-
-        savePatients();
     }
 
     private void mainMenu(Profession profession) {
@@ -84,6 +82,8 @@ public class ConsoleUI {
                 }
             } catch (SecurityException | IllegalArgumentException e) {
                 System.out.println(e.getMessage());
+            } catch (UncheckedIOException e) {
+                System.out.println("Error: " + e.getMessage());
             }
         }
     }
@@ -145,7 +145,7 @@ public class ConsoleUI {
 
         List<Medication> medications = readMedications();
 
-        return new Patient(firstName, lastName, birthDate, weight, height, address, specialists, medications);
+        return new Patient(null, firstName, lastName, birthDate, weight, height, address, specialists, medications);
     }
 
     private List<Medication> readMedications() {
@@ -204,14 +204,6 @@ public class ConsoleUI {
         return medication.name() + " " + medication.dosage() + ", " + medication.frequency();
     }
 
-    private void savePatients() {
-        try {
-            service.save();
-        } catch (UncheckedIOException e) {
-            System.out.println("Error: " + e.getMessage());
-        }
-    }
-
     private void editPatient(Profession profession) {
         Patient oldPatient = choosePatient();
         if (oldPatient == null) {
@@ -228,8 +220,7 @@ public class ConsoleUI {
         if (updatedPatient == null) {
             return;
         }
-        service.update(oldPatient, updatedPatient, patientField);
-        savePatients();
+        service.update(updatedPatient);
 
         System.out.println("Patient Updated");
     }
@@ -306,7 +297,6 @@ public class ConsoleUI {
         };
     }
 
-    // Returns null when nothing was changed (Back, or nothing to change or remove).
     private Patient editMedications(Patient oldPatient) {
         List<Medication> medications = new ArrayList<>(oldPatient.medications());
         while (true) {
@@ -344,7 +334,6 @@ public class ConsoleUI {
         }
     }
 
-    // Returns the index of the chosen medication, or -1 for Back or when there is none.
     private int chooseMedication(List<Medication> medications, String prompt) {
         if (medications.isEmpty()) {
             System.out.println("No medication recorded");
