@@ -78,10 +78,10 @@ public class ConsoleUI {
                         service.add(readPatient());
                         break;
                     case EDIT_PATIENT:
-                        System.out.println(false);
+                        editPatient(profession);
                         break;
                 }
-            } catch (SecurityException e) {
+            } catch (SecurityException | IllegalArgumentException e) {
                 System.out.println(e.getMessage());
             }
         }
@@ -171,6 +171,23 @@ public class ConsoleUI {
             service.save();
         } catch (UncheckedIOException e) {
             System.out.println("Error: " + e.getMessage());
+        }
+    }
+
+    private void editPatient(Profession profession) {
+        Patient oldPatient = choosePatient();
+        if (oldPatient == null) {
+            System.out.println("No patients found.");
+            return;
+        }
+    }
+
+    private Patient choosePatient() {
+        List<Patient> possiblePatients = service.getAll(); 
+        while (true) {
+            for (int i = 0; i < possiblePatients.size(); i++) {
+                
+            }
         }
     }
 
