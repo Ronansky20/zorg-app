@@ -1,0 +1,18 @@
+async function request(path, { method = 'GET', body } = {}) {
+    const headers = {}
+    if (method !== 'GET') headers['X-Zorg-Client'] = 'web'
+    if (body !== undefined) headers['Content-Type'] = 'application/json'
+
+    const response = await fetch(`/api${path}`, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    if (response.status === 204) return null
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.detail ?? response.statusText)
+    return data
+}
+
+export const login = (userId) => request('/auth/login', { method: 'POST', body: { userId } })
+export const getPatients = () => request('/patients')
