@@ -1,18 +1,20 @@
 package patients.model;
 
 public enum PatientField {
-    FIRST_NAME("First name"),
-    LAST_NAME("Last name"),
-    DATE_OF_BIRTH("Date of birth"),
-    WEIGHT("Weight"),
-    HEIGHT("Height"),
-    ADDRESS("Address"),
-    MEDICATION("Medication");
+    FIRST_NAME("First name", "firstName"),
+    LAST_NAME("Last name", "lastName"),
+    DATE_OF_BIRTH("Date of birth", "birthDate"),
+    WEIGHT("Weight", "weight"),
+    HEIGHT("Height", "height"),
+    ADDRESS("Address", "address"),
+    MEDICATION("Medication", "medications");
 
     public final String label;
+    public final String key;
 
-    private PatientField(String label) {
+    private PatientField(String label, String key) {
         this.label = label;
+        this.key = key;
     }
 
     public Object valueOf(Patient patient) {

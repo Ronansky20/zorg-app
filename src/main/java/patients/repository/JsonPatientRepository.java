@@ -32,7 +32,7 @@ public class JsonPatientRepository implements PatientRepository {
     }
 
     @Override
-    public List<Patient> findAll() {
+    public synchronized List<Patient> findAll() {
         List<Patient> patients = new ArrayList<>();
         for (Map.Entry<String, Patient> entry : readFile().entrySet()) {
             patients.add(entry.getValue().withId(entry.getKey()));
@@ -41,12 +41,12 @@ public class JsonPatientRepository implements PatientRepository {
     }
 
     @Override
-    public Optional<Patient> findById(String id) {
+    public synchronized Optional<Patient> findById(String id) {
         return Optional.ofNullable(readFile().get(id)).map(p -> p.withId(id));
     }
 
     @Override
-    public void save(Patient patient) {
+    public synchronized void save(Patient patient) {
         if (patient.id() == null) {
             throw new IllegalArgumentException("Can't save a patient without an id");
         }
