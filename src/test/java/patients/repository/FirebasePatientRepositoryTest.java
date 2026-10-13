@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -79,6 +80,79 @@ class FirebasePatientRepositoryTest {
 
         assertTrue(database.get("userPatients/jansen/a1").getAsBoolean());
         assertTrue(database.get("userPatients/devries").isJsonNull());
+    }
+
+    @Test
+    void newPatientIsWrittenAsAWholeInOnePatch() {
+        repository.save(patient("a1", "John", Map.of("jansen", true)));
+
+        List<String> patches = database.requests.stream().filter(r -> r.startsWith("PATCH")).toList();
+        assertEquals(1, patches.size());
+        assertEquals("John", database.get("patients/a1/firstName").getAsString());
+    }
+
+    @Test
+    void editingOneFieldOnlyWritesThatField() {
+        Patient john = patient("a1", "John", Map.of("jansen", true));
+        repository.save(john);
+        database.requests.clear();
+
+        repository.save(john.withAddress("Oak Lane 1"));
+
+        assertEquals(Set.of("patients/a1/address", "userPatients/jansen/a1"), lastPatchPaths());
+        assertEquals(Optional.of(john.withAddress("Oak Lane 1")), repository.findById("a1"));
+    }
+
+    @Test
+    void savingAnUnchangedPatientOnlyRewritesTheIndex() {
+        Patient john = patient("a1", "John", Map.of("jansen", true, "devries", true));
+        repository.save(john);
+
+        repository.save(john);
+
+        assertEquals(Set.of("userPatients/jansen/a1", "userPatients/devries/a1"), lastPatchPaths());
+    }
+
+    @Test
+    void wholeNumbersStoredByTheDatabaseCountAsUnchanged() {
+        repository.save(patient("a1", "John", Map.of("jansen", true)));
+        database.set("patients/a1/weight", new JsonPrimitive(70));
+
+        repository.save(patient("a1", "John", Map.of("jansen", true)));
+
+        assertFalse(lastPatchPaths().contains("patients/a1/weight"));
+    }
+
+    @Test
+    void changedMedicationsAreWrittenAsOneList() {
+        Patient john = patient("a1", "John", Map.of("jansen", true));
+        repository.save(john);
+
+        repository.save(john.withMedications(List.of()));
+
+        assertTrue(lastPatchPaths().contains("patients/a1/medications"));
+        assertEquals(List.of(), repository.findById("a1").orElseThrow().medications());
+    }
+
+    @Test
+    void clearedFieldIsRemoved() {
+        Patient john = patient("a1", "John", Map.of("jansen", true));
+        repository.save(john);
+
+        repository.save(john.withAddress(null));
+
+        assertTrue(database.get("patients/a1/address").isJsonNull());
+        assertTrue(lastPatchPaths().contains("patients/a1/address"));
+    }
+
+    private Set<String> lastPatchPaths() {
+        String patch = database.requests.stream().filter(r -> r.startsWith("PATCH")).reduce((a, b) -> b).orElseThrow();
+        assertTrue(patch.startsWith("PATCH /.json"), patch);
+        return lastPatchBody().keySet();
+    }
+
+    private JsonObject lastPatchBody() {
+        return database.patchBodies.get(database.patchBodies.size() - 1);
     }
 
     @Test

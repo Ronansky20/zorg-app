@@ -19,18 +19,32 @@ cp "$root/users.json" "$work/"
 cd "$work"
 
 firebase="${ZORG_FIREBASE_URL:-}"
+password="${ZORG_DEV_PASSWORD:-zorg-dev-password}"
 if [[ -n "$firebase" ]]; then
     if [[ ! "$firebase" =~ ^http://(127\.0\.0\.1|localhost)[:/] ]]; then
         echo "Refusing to wipe $firebase: the Firebase smoke test only runs against a local emulator"
         exit 1
     fi
+    export FIREBASE_AUTH_EMULATOR_HOST="${FIREBASE_AUTH_EMULATOR_HOST:-127.0.0.1:9099}"
+    export ZORG_FIREBASE_ADMIN_TOKEN=owner
     db_base="${firebase%%\?*}"
     db_query=""
     [[ "$firebase" == *\?* ]] && db_query="${firebase#*\?}"
     db_url() { echo "${db_base%/}/$1.json?$db_query"; }
-    curl -sf -X PUT -d '{}' "$(db_url "")" > /dev/null
+    admin_curl() { curl -sf -H "Authorization: Bearer owner" "$@"; }
+    admin_curl -X PUT --data-binary @"$root/database.rules.json" "$(db_url .settings/rules)" > /dev/null
+    admin_curl -X PUT -d '{}' "$(db_url "")" > /dev/null
+    "$root/scripts/create-emulator-accounts.sh" > /dev/null
     echo "Running against the Firebase emulator at $firebase"
 fi
+
+login() {
+    if [[ -n "$firebase" ]]; then
+        printf '%s@zorg.test\n%s\n' "$1" "$password"
+    else
+        printf '%s\n' "$2"
+    fi
+}
 
 failures=0
 expect() {
@@ -76,8 +90,7 @@ echo "Doctor adds a patient with medication, adds more medication and sees every
 # physio 2 = Bakker, dentist 2 = Visser; one medication, then n),
 # 3 = Edit Patient -> patient 1 -> field 7 Medication -> 1 Add medication,
 # 1 = View patients, 0 = Quit
-run_app doctor.out <<'EOF'
-1
+run_app doctor.out < <(login jansen 1; cat <<'EOF'
 2
 Jane
 Doe
@@ -104,6 +117,7 @@ as needed
 1
 0
 EOF
+)
 expect doctor.out "Add patient"
 expect doctor.out "First name: Jane"
 expect doctor.out "Date of birth: 1995-06-15"
@@ -118,8 +132,8 @@ expect doctor.out "Dr. Max Jansen (Doctor)"
 
 if [[ -n "$firebase" ]]; then
     echo "Patient and index are saved to Firebase"
-    curl -sf "$(db_url patients)" > stored.json || echo "{}" > stored.json
-    curl -sf "$(db_url userPatients)" > index.json || echo "{}" > index.json
+    admin_curl "$(db_url patients)" > stored.json || echo "{}" > stored.json
+    admin_curl "$(db_url userPatients)" > index.json || echo "{}" > index.json
     expect stored.json '"firstName":"Jane"'
     expect stored.json '"birthDate":"1995-06-15"'
     expect stored.json '"jansen":true'
@@ -145,11 +159,11 @@ fi
 
 echo "Pharmacist on the care team reloads the saved patient but only sees permitted fields"
 # account 4 = Pieter de Vries (Pharmacist); menu 1 = View patients, 0 = Quit
-run_app pharmacist.out <<'EOF'
-4
+run_app pharmacist.out < <(login devries 4; cat <<'EOF'
 1
 0
 EOF
+)
 expect pharmacist.out "First name: Jane"
 expect pharmacist.out "Last name: Doe"
 expect pharmacist.out "Date of birth: 1995-06-15"
@@ -161,33 +175,55 @@ reject pharmacist.out "Add patient"
 
 echo "Users who are not on the care team don't see the patient"
 # account 2 = Dr. Noor Hendriks, 3 = Daan Mulder (Pharmacist); menu 1 = View patients, 0 = Quit
-run_app other-doctor.out <<'EOF'
-2
+run_app other-doctor.out < <(login hendriks 2; cat <<'EOF'
 1
 0
 EOF
+)
 expect other-doctor.out "Welcome Dr. Noor Hendriks (Doctor)"
 reject other-doctor.out "First name: Jane"
-run_app other-pharmacist.out <<'EOF'
-3
+run_app other-pharmacist.out < <(login mulder 3; cat <<'EOF'
 1
 0
 EOF
+)
 expect other-pharmacist.out "Welcome Daan Mulder (Pharmacist)"
 reject other-pharmacist.out "First name: Jane"
 
 echo "Dentist can't pick medication when editing a patient"
 # account 8 = Lotte Visser (Dentist); menu 2 = Edit Patient -> patient 1 -> 0 Back, 0 = Quit
-run_app dentist.out <<'EOF'
-8
+run_app dentist.out < <(login visser 8; cat <<'EOF'
 2
 1
 0
 0
 EOF
+)
 expect dentist.out "Which field would you like to edit?"
 expect dentist.out "Address: Elm Street 58"
 reject dentist.out "Medication"
+
+echo "Dentist edits the address"
+run_app dentist-edit.out < <(login visser 8; cat <<'EOF'
+2
+1
+3
+Oak Lane 1
+1
+0
+EOF
+)
+expect dentist-edit.out "Patient Updated"
+expect dentist-edit.out "Address: Oak Lane 1"
+reject dentist-edit.out "Permission denied"
+
+if [[ -n "$firebase" ]]; then
+    echo "Wrong passwords are rejected"
+    run_app wrong-password.out < <(printf 'jansen@zorg.test\nnope\n%.0s' 1 2 3)
+    expect wrong-password.out "Wrong email or password"
+    expect wrong-password.out "Too many failed attempts"
+    reject wrong-password.out "Welcome"
+fi
 
 if (( failures > 0 )); then
     echo "Smoke test failed: $failures check(s) failed"

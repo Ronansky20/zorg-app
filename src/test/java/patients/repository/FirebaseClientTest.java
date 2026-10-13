@@ -11,6 +11,7 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -108,5 +109,24 @@ class FirebaseClientTest {
 
         assertTrue(database.requests.get(0).endsWith("auth=first"), database.requests.get(0));
         assertTrue(database.requests.get(1).endsWith("auth=second"), database.requests.get(1));
+    }
+
+    @Test
+    void adminClientSendsTheTokenAsBearerHeaderNotInTheUrl() {
+        FirebaseClient client = FirebaseClient.admin(database.url(), "owner");
+
+        client.get("patients");
+
+        assertEquals("Bearer owner", database.authorizations.get(0));
+        assertFalse(database.requests.get(0).contains("auth="), database.requests.get(0));
+    }
+
+    @Test
+    void userClientSendsNoAuthorizationHeader() {
+        FirebaseClient client = new FirebaseClient(database.url(), () -> "id-token");
+
+        client.get("patients");
+
+        assertEquals("null", database.authorizations.get(0));
     }
 }
