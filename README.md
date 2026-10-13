@@ -1,10 +1,11 @@
 # zorg-app — Patient Management System
 
 A small Java console application for recording patients and their care team. You
-pick your profession, then use a menu to view the patient overview (with each
-patient's BMI) or add new patients — depending on what your profession is allowed
-to do. Data is stored in local JSON files by default, or in a Firebase Realtime
-Database (see [Running against Firebase](#running-against-firebase)).
+log in as a care provider, then use a menu to view, add and edit the patients
+whose care team you are on. Your profession decides which of these you may do
+and which fields you may see and change. Data is stored in local JSON files by
+default, or in a Firebase Realtime Database with sign-in and server-side
+security rules (see [Running against Firebase](#running-against-firebase)).
 
 ## Requirements
 
@@ -177,7 +178,7 @@ A session looks like this (logged in as a doctor):
 Hello, please choose your account
 1. Dr. Max Jansen (Doctor)
 2. Dr. Noor Hendriks (Doctor)
-3. Pieter de Vries (Pharmacist)
+3. Daan Mulder (Pharmacist)
 ...
 Please choose your account 1-8
 1
@@ -191,11 +192,11 @@ Please choose an option 0-3
 1
 First name: John
 Last name: Doe
-Date of birth: 2003-02-07
-Weight: 67.0
-Height: 1.82
-Address: Exeter
-Medication: none
+Date of birth: 1998-03-14
+Weight: 89.2
+Height: 1.9
+Address: Elm Street 58
+Medication: Paracetamol 500 mg, 3x daily
 Care team: Dr. Max Jansen (Doctor), Pieter de Vries (Pharmacist), Sanne Bakker (Physiotherapist), Lotte Visser (Dentist)
 ----------
 0. Quit
@@ -210,14 +211,15 @@ What happens, in order:
    in with email and password instead (three attempts), and your login's uid
    picks the account. Your account's profession decides which menu options and
    fields you get.
-2. **Patients are loaded** from `patients.json`. If the file is missing the app
+2. **Your patients are loaded**, from `patients.json` or from Firebase: only the
+   patients whose care team you are on. If `patients.json` is missing the app
    starts with an empty list; if it exists but cannot be read (or is in the old
    format, see [Data files](#data-files)), a warning is printed and the app
    continues with an empty list.
 3. **Main menu.** The menu lists only the actions your profession is allowed to
    perform, numbered from 1, plus `0. Quit`. After each action you return to the
-   menu, so you can view and add as often as you like in one session. Every
-   patient you add or edit is **saved to `patients.json` straight away**.
+   menu, so you can view, add and edit as often as you like in one session.
+   Every patient you add or edit is **saved straight away**.
 4. **Quit (`0`).** Ends the session. There is nothing left to save.
 
 ### Care teams
@@ -228,30 +230,75 @@ still decides *which* fields you may see or edit.
 
 When a doctor adds a patient, they pick one doctor, pharmacist, physiotherapist
 and dentist for the team (or `0` for none). The doctor who adds the patient is
-always on the team. The care team can't be changed from the app yet; to change
-it, edit `careTeam` in `patients.json`.
+always on the team. The care team can't be changed from the app yet. With the
+JSON files you can edit `careTeam` in `patients.json` by hand; on Firebase the
+security rules fix the team once the patient is created, so only an admin can
+change it.
 
 ### Permissions
 
-| Profession | View patients | Add patient |
-| --- | :---: | :---: |
-| Doctor | ✓ | ✓ |
-| Physiotherapist | ✓ | ✓ |
-| Dentist | ✓ | ✓ |
-| Pharmacist | — | — |
+Your profession decides which menu actions you get:
 
-A pharmacist currently gets a menu with only `0. Quit`. Permissions are defined in
-[ProfessionPermissions.java](src/main/java/patients/service/ProfessionPermissions.java) and
-are also enforced in `PatientService`. If the UI ever offers an action the
+| Profession | View patients | Add patient | Edit patient |
+| --- | :---: | :---: | :---: |
+| Doctor | ✓ | ✓ | ✓ |
+| Physiotherapist | ✓ | — | ✓ |
+| Dentist | ✓ | — | ✓ |
+| Pharmacist | ✓ | — | — |
+
+and which fields you may see (👁) and edit (✎):
+
+| Field | Doctor | Physiotherapist | Dentist | Pharmacist |
+| --- | :---: | :---: | :---: | :---: |
+| First name, last name | 👁 ✎ | 👁 ✎ | 👁 ✎ | 👁 |
+| Date of birth | 👁 ✎ | 👁 | 👁 | 👁 |
+| Weight, height | 👁 ✎ | 👁 ✎ | 👁 | — |
+| Address | 👁 ✎ | 👁 ✎ | 👁 ✎ | — |
+| Medication | 👁 ✎ | 👁 | 👁 | 👁 |
+
+Actions are defined in
+[ProfessionPermissions.java](src/main/java/patients/service/ProfessionPermissions.java)
+and fields in [FieldPermissions.java](src/main/java/patients/service/FieldPermissions.java).
+Both are enforced in `PatientService` too. If the UI ever offers an action the
 profession isn't allowed to perform, the service refuses it and the menu prints
-e.g. `Pharmacist is not allowed to Add patient`.
+e.g. `Pharmacist is not allowed to Add patient`. On Firebase the same rules are
+also enforced by the database (see [Security rules](#security-rules)).
 
 ### Menu actions
 
-**View patients** prints every patient with their computed age and BMI:
+**View patients** prints each of your patients, one field per line (only the
+fields your profession may see), followed by the care team:
 
 ```text
-John Doe, age: 28, weight: 89.2 kg, address: Elm Street 58, BMI: 24.7
+First name: John
+Last name: Doe
+Date of birth: 1998-03-14
+Medication: Paracetamol 500 mg, 3x daily
+Care team: Dr. Max Jansen (Doctor), Pieter de Vries (Pharmacist), Sanne Bakker (Physiotherapist), Lotte Visser (Dentist)
+----------
+```
+
+(That is what a pharmacist sees; a doctor also sees weight, height and address.)
+
+**Edit Patient** lists your patients by name; pick one, then pick one of the
+fields you may edit (each shown with its current value) and enter the new value.
+The change is saved straight away and `Patient Updated` is printed. `0` goes
+back at every step.
+
+```text
+0. Back
+1. John Doe
+What patient would you like to edit?
+1
+0. Back
+1. First name: John
+2. Last name: Doe
+3. Address: Elm Street 58
+Which field would you like to edit?
+3
+New Address:
+Oak Lane 1
+Patient Updated
 ```
 
 **Add patient** asks for one patient, then returns to the menu:
@@ -287,13 +334,7 @@ frequency. It is shown as one line when viewing patients:
 Medication: Paracetamol 500 mg, 3x daily; Ibuprofen 400 mg, as needed
 ```
 
-| Profession | View medication | Edit medication |
-| --- | :---: | :---: |
-| Doctor | ✓ | ✓ |
-| Pharmacist | ✓ | — |
-| Physiotherapist | ✓ | — |
-| Dentist | ✓ | — |
-
+Everyone can see it, but only a doctor can edit it (see [Permissions](#permissions)).
 A doctor changes medication via **Edit Patient** → choose the patient →
 **Medication**, which opens a sub-menu to **Add**, **Change** (re-enter an entry)
 or **Remove** a medication. Who may see or edit it is defined in
@@ -312,11 +353,11 @@ Input handling details:
   and height must be greater than 0. A patient (or an edit) that breaks one of
   these rules is refused with a message and nothing is saved. The address may be
   left empty.
-- Age (in completed years) and BMI (`weight / (height * height)`) are computed
-  on the fly ([Patient.age()](src/main/java/patients/model/Patient.java#L19-L25),
-  [Patient.bmi()](src/main/java/patients/model/Patient.java#L15-L17)); neither is stored
-  in the JSON file. Someone born on 29 February turns a year older on 1 March
-  in non-leap years.
+- `Patient` can compute age in completed years
+  ([Patient.age()](src/main/java/patients/model/Patient.java#L133-L139)) and BMI,
+  `weight / (height * height)` ([Patient.bmi()](src/main/java/patients/model/Patient.java#L129-L131)).
+  Neither is stored, and the console doesn't show them yet. Someone born on
+  29 February turns a year older on 1 March in non-leap years.
 
 ## Data files
 
@@ -440,15 +481,15 @@ Layering and the reasoning behind it are described in
 
 Known gaps, so nobody goes looking for features that are not there yet:
 
-- **View and add only.** There is no search, edit or delete.
+- **No search or delete.** Patients can be viewed, added and edited.
 - **No authentication on JSON.** With the local files anyone can pick any
   account; only the Firebase mode has passwords and server-side rules.
 - **Passwords are echoed.** The sign-in prompt reads the password like any other
   line, so it is visible while you type it.
 - **Care teams can't be changed in the app.** They are set when a patient is
   added; after that, only by editing `patients.json`.
-- **Pharmacists can't do anything** besides quit. They have no permitted actions
-  yet.
+- **Pharmacists can only view.** They can't add or edit patients, not even
+  medication.
 - **No duplicate detection** — three identical "John Doe" records are three
   separate patients, each with its own id.
 - **One user at a time on JSON.** Each save rewrites the whole file, so two
