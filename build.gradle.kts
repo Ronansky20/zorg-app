@@ -1,5 +1,8 @@
+import org.springframework.boot.gradle.plugin.SpringBootPlugin
+
 plugins {
     application
+    id("org.springframework.boot") version "4.1.1"
 }
 
 repositories {
@@ -7,9 +10,11 @@ repositories {
 }
 
 dependencies {
+    implementation(platform(SpringBootPlugin.BOM_COORDINATES))
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("com.google.code.gson:gson:2.14.0")
 
-    testImplementation(platform("org.junit:junit-bom:5.11.0"))
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -26,6 +31,16 @@ application {
 tasks.named<JavaExec>("run") {
     // the console UI reads from stdin, and patients.json is resolved against the working directory
     standardInput = System.`in`
+    workingDir = rootDir
+}
+
+// application.mainClass is the console app, so the web app's main class is set on the Spring Boot tasks
+tasks.bootJar {
+    mainClass = "patients.web.WebApp"
+}
+
+tasks.bootRun {
+    mainClass = "patients.web.WebApp"
     workingDir = rootDir
 }
 

@@ -42,7 +42,7 @@ class FirebaseRulesTest {
                 .collect(Collectors.toSet());
 
         for (PatientField field : PatientField.values()) {
-            String key = FirebaseRules.FIELDS.get(field).key();
+            String key = field.key;
             assertTrue(components.contains(key), field + " maps to " + key + ", which Patient doesn't have");
             assertTrue(patientRules().has(key), "no rule for " + key);
         }
@@ -56,7 +56,7 @@ class FirebaseRulesTest {
         assertTrue(writeRule("medications").contains("'DOCTOR'"));
         assertFalse(writeRule("medications").contains("'PHYSIOTHERAPIST'"));
         for (PatientField field : PatientField.values()) {
-            assertFalse(writeRule(FirebaseRules.FIELDS.get(field).key()).contains("'PHARMACIST'"), field.toString());
+            assertFalse(writeRule(field.key).contains("'PHARMACIST'"), field.toString());
         }
     }
 

@@ -1,15 +1,22 @@
 # Architecture
 
-The app is deliberately split into four layers so that the console, the business
-rules and the storage format can change independently. Everything is wired
-together once, in [App.java](../src/main/java/patients/App.java):
+The app is deliberately split into layers so that the user interface, the
+business rules and the storage format can change independently. There are two
+user interfaces on the same services: the console
+([App.java](../src/main/java/patients/App.java) → `ConsoleUI`) and a Spring Boot
+REST API ([WebApp.java](../src/main/java/patients/web/WebApp.java) → the
+controllers in `patients.web.api`).
 
-it picks the Firebase repositories and `FirebaseAuth` when `ZORG_FIREBASE_URL` is
-set and the JSON ones otherwise, then wires them into the services and the UI:
+Both decide on storage the same way, through
+[Backend.java](../src/main/java/patients/Backend.java): it reads
+`ZORG_FIREBASE_URL`, `FIREBASE_AUTH_EMULATOR_HOST` and `ZORG_FIREBASE_API_KEY`
+(from `System.getenv` in the console, from Spring's `Environment` in the web
+app) and builds either the JSON repositories or a `FirebaseAuth` plus Firebase
+repositories that use its token. The console then wires one set together:
 
 ```java
-PatientService service = new PatientService(repository);
-UserService userService = new UserService(userRepository);
+PatientService service = new PatientService(repositories.patients());
+UserService userService = new UserService(repositories.users());
 ConsoleUI ui = new ConsoleUI(service, userService, auth);
 ui.run();
 ```
@@ -18,13 +25,14 @@ ui.run();
 of a sign-in prompt.
 
 ```text
-ConsoleUI  ──►  PatientService  ──►  PatientRepository (interface)
- (I/O)         (list + rules)             ├──► JsonPatientRepository (patients.json)
-   │                                      └──► FirebasePatientRepository ─┐
-   ├──────►  UserService     ──►  UserRepository (interface)              ├─► FirebaseClient (REST)
-   │          (user lookups)              ├──► JsonUserRepository (users.json)    ▲ idToken
-   │                                      └──► FirebaseUserRepository ────┘       │
-   ├──────►  Authenticator (interface) ──►  FirebaseAuth (Identity Toolkit REST) ─┘
+ConsoleUI ─────────┐
+ (I/O)             ├──►  PatientService  ──►  PatientRepository (interface)
+web controllers ───┤    (rules, user per call)    ├──► JsonPatientRepository (patients.json)
+ (JSON over HTTP)  │                               └──► FirebasePatientRepository ─┐
+   │               └──►  UserService     ──►  UserRepository (interface)           ├─► FirebaseClient (REST)
+   │                     (user lookups)        ├──► JsonUserRepository (users.json)        ▲ idToken
+   │                                           └──► FirebaseUserRepository ────────┘       │
+   ├──────►  SignIn / Authenticator  ──►  FirebaseAuth (Identity Toolkit REST) ────────────┘
    │
    └──────►  ProfessionPermissions / FieldPermissions  (profession → actions / fields)
                        │
@@ -33,9 +41,10 @@ ConsoleUI  ──►  PatientService  ──►  PatientRepository (interface)
 Patient, User, Medication, Profession, Action, PatientField  (model types, used everywhere)
 ```
 
-Dependencies point in one direction only: the UI knows the service, the service
-knows the repository *interface*, and only `App` knows which implementation is
-used. Nothing below the UI reads from `System.in` or writes to `System.out`.
+Dependencies point in one direction only: the UIs know the services, the
+services know the repository *interfaces*, and only `App`/`Backend` (and the web
+app's `BackendConfig`) know which implementation is used. Nothing below the UIs
+reads from `System.in`, writes to `System.out` or knows about HTTP.
 
 ## The layers
 
@@ -227,40 +236,47 @@ database, a CSV file, an in-memory fake for tests) and choosing it in `App`.
 
 ### `service` — [PatientService](../src/main/java/patients/service/PatientService.java) and [ProfessionPermissions](../src/main/java/patients/service/ProfessionPermissions.java)
 
-`PatientService` keeps a cached list of patients for the UI to show, and the
-user currently logged in:
+`PatientService` is **stateless**: it holds only its repository and a `Clock`,
+and every method takes the `User` who is acting. That is what lets one instance
+serve many web requests from different users at the same time. Checking a
+password is the UI's job (via `Authenticator` or `SignIn`) before it passes a
+user in. The user's profession selects which permissions apply and their id
+selects which patients.
 
-- `login(User)` sets the current user; checking a password is the UI's job (via
-  `Authenticator`) before it calls `login`. The user's profession selects which
-  permissions apply and their id selects which patients.
-- `load()` clears the cache and refills it with the logged-in user's patients
-  (`repository.findAllForUser(...)`), sorted by last name, then first name. The
-  sort keeps the numbered lists in the UI stable whatever order the storage
-  returns. It needs a logged-in user, so it is called after `login`.
-- `add(Patient)` validates the patient, adds the current user to its care team,
-  gives it a new id if it has none, saves it through the repository straight
-  away and appends it to the cache.
-- `update(Patient)` saves a changed version of an existing patient. It looks up
-  the stored version by id and refuses with `SecurityException` if the current
-  user is not on its care team. It then compares every `PatientField` (via
-  `PatientField.valueOf`). If any changed field is not editable by the current
-  profession (`FieldPermissions.canEdit`), or the care team changed, it throws
-  `SecurityException` and saves nothing. The UI only offers editable fields, but
+- `getAll(user)` reads the user's patients from the repository
+  (`findAllForUser(...)`), keeps only those whose care team includes them, and
+  sorts them by last name, then first name. The sort keeps the numbered lists in
+  the console stable whatever order the storage returns. Nothing is cached, so
+  changes made by someone else show up on the next call.
+- `get(user, id)` returns one of those patients, or throws
+  `PatientNotFoundException` (an `IllegalArgumentException`). It goes through
+  `getAll` on purpose: on Firebase, reading a patient you aren't on the team of
+  is refused by the rules, while going through your own index simply doesn't
+  find it.
+- `add(user, patient)` validates the patient, adds the user to its care team,
+  gives it a new id if it has none, saves it straight away and returns the
+  saved patient.
+- `update(user, patient)` saves a changed version of an existing patient. It
+  looks up the stored version by id (`PatientNotFoundException` if there is
+  none) and refuses with `SecurityException` if the user is not on its care
+  team. It then compares every `PatientField` (via `PatientField.valueOf`). If
+  any changed field is not editable by the user's profession
+  (`FieldPermissions.canEdit`), or the care team changed, it throws
+  `SecurityException` and saves nothing. The UIs only offer editable fields, but
   the service checks every field regardless.
-- `getAll()` returns an unmodifiable list of only the patients whose care team
-  includes the current user.
 
-`add`, `update` and `getAll` are guarded by `requirePermission(Action)`, which
-throws `IllegalStateException` if nobody is logged in and `SecurityException`
-if the current profession may not perform that action. `add` and `update` also
-validate the patient (first and last name not blank, weight and height above 0)
-and throw `IllegalArgumentException` otherwise; this also keeps `bmi()` finite.
-`load` is not guarded.
+Every method is guarded by `requirePermission(user, action)`, which throws
+`IllegalStateException` if the user is `null` and `SecurityException` if the
+profession may not perform that action. `add` and `update` also validate the
+patient: first and last name not blank, a date of birth that is not in the
+future (by the injected `Clock`, so tests can fix "today"), weight and height
+above 0, and a name on every medication. Otherwise they throw
+`IllegalArgumentException`; this also keeps `bmi()` finite.
 
-[UserService](../src/main/java/patients/service/UserService.java) caches the
-accounts for the UI, sorted by profession and then name: `getAll()` for the
-login list, `getByProfession(...)` for picking a care team, and `findById(...)`
-to show team members by name.
+[UserService](../src/main/java/patients/service/UserService.java) reads the
+accounts sorted by profession and then name: `getAll()` for the login list,
+`getByProfession(...)` for picking a care team, and `findById(...)`. It doesn't
+cache either; the console keeps the list it loaded at sign-in.
 
 `ProfessionPermissions` is a static `EnumMap<Profession, Set<Action>>`, the single
 source of truth for who may do what. `isAllowed(profession, action)` answers one
@@ -282,10 +298,10 @@ All console interaction and all parsing. `run()` is the whole session:
 1. Without an `Authenticator`, `chooseAccount()` loads the accounts (with none,
    the app says so and stops) and `askUser()` re-prompts until a valid number is
    chosen. With one, `signIn()` asks for email and password (three attempts),
-   then loads the accounts and looks up the signed-in uid. Either way the user
-   is passed to `service.login(...)`.
-2. `loadPatients()` loads the file, printing a warning on `UncheckedIOException`.
-3. `mainMenu(profession)` loops over a numbered menu built from
+   then loads the accounts and looks up the signed-in uid. Either way the UI
+   keeps the user and the account list in its own fields, and passes the user to
+   every service call.
+2. `mainMenu(profession)` loops over a numbered menu built from
    `ProfessionPermissions.getAllowedActions(...)`, with `0` to quit. The chosen
    `Action` is dispatched in a `switch`. A `SecurityException` or
    `IllegalArgumentException` from the service is printed, and so is an
@@ -298,16 +314,80 @@ one place: the numeric ones loop until they parse successfully, and `readDouble`
 normalizes a comma to a dot so both decimal conventions work. `printPatients()`
 is the only place that formats output.
 
+### `web` — the Spring Boot API
+
+[WebApp](../src/main/java/patients/web/WebApp.java) is a `@SpringBootApplication`
+in `patients.web`, so component scanning only picks up the web classes; the
+layers above stay plain Java. `./gradlew bootRun` starts it, and `bootJar`
+builds one executable jar (both have their main class set in
+`build.gradle.kts`, because the `application` plugin's main class is the
+console).
+
+- **Wiring.** [BackendConfig](../src/main/java/patients/web/BackendConfig.java)
+  defines two beans: a `Backend` read from Spring's `Environment` (so the same
+  environment variables work, and tests can override them as properties), and a
+  `SignIn` for the chosen storage. In Firebase mode it refuses to start without
+  sign-in settings. `zorg.data-dir` (`ZorgProperties`) says where the JSON files
+  are.
+- **Sign-in and sessions.** [SignIn](../src/main/java/patients/web/session/SignIn.java)
+  turns a login request into a `Workspace` record: the user plus the
+  `PatientService` and `UserService` to use for them. `LocalSignIn` (JSON) looks
+  the account up by id and shares one pair of services, since they are
+  stateless. `FirebaseSignIn` signs in with email and password and builds a new
+  `FirebaseAuth`, `FirebaseClient` and services *per session*, so every database
+  request carries that user's ID token and the security rules apply per user.
+  `AuthController` stores the workspace in the `HttpSession`, changing the
+  session id on login against session fixation.
+- **Workspace parameter.** [WorkspaceArgumentResolver](../src/main/java/patients/web/session/WorkspaceArgumentResolver.java)
+  lets a controller method declare a `Workspace` parameter; without a signed-in
+  session it throws `NotSignedInException` (401), so no controller has to check.
+- **CSRF.** The session cookie is `SameSite=Strict`, and
+  [ClientHeaderInterceptor](../src/main/java/patients/web/session/ClientHeaderInterceptor.java)
+  rejects `POST`/`PATCH` under `/api` without `X-Zorg-Client: web`. A form on
+  another site can't set that header, and a cross-site `fetch` with it needs a
+  CORS preflight that the app never allows. This avoids pulling in Spring
+  Security for one check.
+- **Controllers and DTOs** (`patients.web.api`). Controllers only translate
+  between JSON and service calls. Request and response bodies are records, kept
+  separate from the model:
+  - `PatientResponse.of(...)` leaves out the fields the user's profession may not
+    view (`FieldPermissions.getViewableFields`). This filtering has to happen on
+    the server, because neither the services nor the Firebase rules hide fields.
+    The care team is returned with names.
+  - `PatientChanges` is the `PATCH` body: a field that is absent (`null`) stays
+    as stored, so a client only sends what it changes and never needs fields it
+    can't see. The merged patient then goes through `update`, which checks every
+    changed field.
+  - `NewPatientRequest` takes the care team as a list of user ids, which must
+    exist.
+  - `MeResponse` and `ConfigResponse` tell a frontend which actions and fields to
+    offer, and their labels.
+- **Errors.** [ApiExceptionHandler](../src/main/java/patients/web/ApiExceptionHandler.java)
+  extends Spring's `ResponseEntityExceptionHandler`, so framework errors (bad
+  JSON, unknown URL) and the app's exceptions all come back as problem details:
+
+  | Exception | Status |
+  | --- | --- |
+  | `NotSignedInException`, `SignInFailedException` | 401 |
+  | `SecurityException` | 403 |
+  | `PatientNotFoundException` | 404 |
+  | `IllegalArgumentException`, unreadable JSON | 400 |
+  | `UncheckedIOException` (storage) | 502 |
+
+Jackson writes the API's JSON (records and ISO dates out of the box); Gson stays
+inside the repositories for the storage format.
+
 ## Where to add things
 
 | Change | Where it goes |
 | --- | --- |
-| New patient field | `Patient` record (and its `withX` methods) + the prompts in `readPatient()`; if users should see or edit it, a `PatientField` constant with its `valueOf` case and an entry in `FieldPermissions`. Old JSON records simply leave it at its default |
-| New menu action (search, edit, delete) | a new `Action` constant; grant it to professions in `ProfessionPermissions`; a guarded method on `PatientService` (`requirePermission(...)`); a `case` in `ConsoleUI.mainMenu()` |
+| New patient field | `Patient` record (and its `withX` methods) + the prompts in `readPatient()`; if users should see or edit it, a `PatientField` constant (label, JSON key, `valueOf` case) and an entry in `FieldPermissions`; for the web API, the field in `PatientResponse`, `NewPatientRequest` and `PatientChanges`. Old JSON records simply leave it at its default |
+| New menu action (search, edit, delete) | a new `Action` constant; grant it to professions in `ProfessionPermissions`; a guarded method on `PatientService` (`requirePermission(user, ...)`); a `case` in `ConsoleUI.mainMenu()` and an endpoint in a controller under `patients.web.api` |
+| New endpoint | a method on a `@RestController` in `patients.web.api`; take a `Workspace` parameter if it needs a signed-in user, and throw the usual exceptions (`ApiExceptionHandler` maps them); a `@WebMvcTest` in `src/test/java/patients/web` |
 | New profession | a new `Profession` constant, its entries in `ProfessionPermissions` and `FieldPermissions`, and accounts with it in `users.json`. The add-patient flow asks for one team member per profession automatically |
 | New user account | an entry in `users.json`; on Firebase also a login whose uid is that key (`scripts/create-emulator-accounts.sh` for the emulator) |
 | Change who may do what | `ProfessionPermissions` / `FieldPermissions`. The menu and the service checks read from them; then run `./gradlew generateFirebaseRules` so the database rules follow |
-| Different storage (DB, CSV) | new `PatientRepository` / `UserRepository` implementations (reuse `GsonFactory` for JSON); choose them in `App` |
+| Different storage (DB, CSV) | new `PatientRepository` / `UserRepository` implementations (reuse `GsonFactory` for JSON); choose them in `Backend` (and a `SignIn` for them in `BackendConfig`) |
 | New data in Firebase | the record type (Gson maps it); if users need to find it by something other than id, an index like `/userPatients` written in the same multi-path `PATCH` |
-| Validation | `PatientService.validate()` if it is a rule about patients; `ConsoleUI` if it is about re-prompting input |
-| Tests | under `src/test/java`, mirroring `src/main/java`. [InMemoryPatientRepository](../src/test/java/patients/service/InMemoryPatientRepository.java) lets `PatientService` be tested without touching the filesystem; remember to `login(...)` first, as a user on the patient's care team. `FakeRealtimeDatabase` (a JDK `HttpServer` that mimics the REST API) tests the Firebase classes offline; `ZORG_FIREBASE_URL=<emulator> ./scripts/smoke-test.sh` runs the end-to-end test against the real emulator |
+| Validation | `PatientService.validate()` if it is a rule about patients (both UIs get it); `ConsoleUI` if it is about re-prompting input |
+| Tests | under `src/test/java`, mirroring `src/main/java`. [InMemoryPatientRepository](../src/test/java/patients/testing/InMemoryPatientRepository.java) and `InMemoryUserRepository` let the services and the web controllers be tested without touching the filesystem; pass a user who is on the patient's care team. The web tests import `TestWebConfig`, which signs in against them. `./scripts/web-smoke-test.sh` drives the real web server with `curl`. `FakeRealtimeDatabase` (a JDK `HttpServer` that mimics the REST API) tests the Firebase classes offline; `ZORG_FIREBASE_URL=<emulator> ./scripts/smoke-test.sh` runs the end-to-end test against the real emulator |
