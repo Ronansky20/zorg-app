@@ -23,6 +23,8 @@ public class FakeRealtimeDatabase implements AutoCloseable {
     private final HttpServer server;
     private JsonObject root = new JsonObject();
     final List<String> requests = new ArrayList<>();
+    final List<String> authorizations = new ArrayList<>();
+    final List<JsonObject> patchBodies = new ArrayList<>();
     int failWithStatus = 0;
 
     public FakeRealtimeDatabase() throws IOException {
@@ -73,6 +75,7 @@ public class FakeRealtimeDatabase implements AutoCloseable {
         String method = exchange.getRequestMethod();
         URI uri = exchange.getRequestURI();
         requests.add(method + " " + uri);
+        authorizations.add(String.valueOf(exchange.getRequestHeaders().getFirst("Authorization")));
         if (failWithStatus != 0) {
             respond(exchange, failWithStatus, "{\"error\":\"Permission denied\"}");
             return;
@@ -88,6 +91,7 @@ public class FakeRealtimeDatabase implements AutoCloseable {
             }
             case "PATCH" -> {
                 JsonObject update = JsonParser.parseString(requestBody).getAsJsonObject();
+                patchBodies.add(update);
                 for (Map.Entry<String, JsonElement> entry : update.entrySet()) {
                     set(path + "/" + entry.getKey(), entry.getValue());
                 }

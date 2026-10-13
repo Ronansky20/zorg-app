@@ -1,5 +1,6 @@
 package patients.ui;
 
+import patients.auth.Authenticator;
 import patients.model.Medication;
 import patients.model.Patient;
 import patients.model.PatientField;
@@ -21,30 +22,35 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class ConsoleUI {
 
+    private static final int MAX_SIGN_IN_ATTEMPTS = 3;
+
     private final PatientService service;
     private final UserService userService;
+    private final Authenticator authenticator;
     private final Scanner scan = new Scanner(System.in);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd-MM-uuuu")
             .withResolverStyle(ResolverStyle.STRICT);
 
     public ConsoleUI(PatientService service, UserService userService) {
+        this(service, userService, null);
+    }
+
+    public ConsoleUI(PatientService service, UserService userService, Authenticator authenticator) {
         this.service = service;
         this.userService = userService;
+        this.authenticator = authenticator;
     }
 
     public void run() {
-        loadUsers();
-        if (userService.getAll().isEmpty()) {
-            System.out.println("No user accounts found, add them to users.json");
+        User user = authenticator == null ? chooseAccount() : signIn();
+        if (user == null) {
             return;
         }
-
-        System.out.println("Hello, please choose your account");
-        User user = askUser();
         service.login(user);
         System.out.println("Welcome " + formatUser(user));
 
@@ -97,6 +103,44 @@ public class ConsoleUI {
                 System.out.println("Error: " + e.getMessage());
             }
         }
+    }
+
+    private User chooseAccount() {
+        loadUsers();
+        if (userService.getAll().isEmpty()) {
+            System.out.println("No user accounts found, add them to users.json");
+            return null;
+        }
+        System.out.println("Hello, please choose your account");
+        return askUser();
+    }
+
+    private User signIn() {
+        System.out.println("Hello, please sign in");
+        String userId = null;
+        for (int attempt = 1; userId == null; attempt++) {
+            if (attempt > MAX_SIGN_IN_ATTEMPTS) {
+                System.out.println("Too many failed attempts");
+                return null;
+            }
+            String email = readLine("Email: ");
+            String password = readLine("Password: ");
+            try {
+                userId = authenticator.signIn(email, password);
+            } catch (SecurityException e) {
+                System.out.println(e.getMessage());
+            } catch (UncheckedIOException e) {
+                System.out.println("Error: " + e.getMessage());
+                return null;
+            }
+        }
+
+        loadUsers();
+        Optional<User> user = userService.findById(userId);
+        if (user.isEmpty()) {
+            System.out.println("Your login has no account in the database, ask an administrator to add it");
+        }
+        return user.orElse(null);
     }
 
     private User askUser() {

@@ -8,9 +8,11 @@ import com.google.gson.JsonPrimitive;
 import patients.model.Patient;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Stores patients in a Firebase Realtime Database. Next to {@code /patients/<id>} it keeps the
@@ -64,23 +66,45 @@ public class FirebasePatientRepository implements PatientRepository {
             throw new IllegalArgumentException("Can't save a patient without an id");
         }
         String id = patient.id();
+        String path = "patients/" + id;
+        JsonObject stored = gson.toJsonTree(patient.withId(null)).getAsJsonObject();
+        JsonElement existing = client.get(path);
 
         JsonObject update = new JsonObject();
-        update.add("patients/" + id, gson.toJsonTree(patient.withId(null)));
-        JsonElement oldTeam = client.get("patients/" + id + "/careTeam");
-        if (oldTeam.isJsonObject()) {
-            for (String userId : oldTeam.getAsJsonObject().keySet()) {
-                if (!patient.hasMember(userId)) {
-                    update.add("userPatients/" + userId + "/" + id, JsonNull.INSTANCE);
+        if (existing.isJsonObject()) {
+            JsonObject old = existing.getAsJsonObject();
+            Set<String> keys = new LinkedHashSet<>(old.keySet());
+            keys.addAll(stored.keySet());
+            for (String key : keys) {
+                JsonElement value = valueOf(stored, key);
+                if (!value.equals(valueOf(old, key))) {
+                    update.add(path + "/" + key, value);
                 }
             }
+            JsonElement oldTeam = old.get("careTeam");
+            if (oldTeam != null && oldTeam.isJsonObject()) {
+                for (String userId : oldTeam.getAsJsonObject().keySet()) {
+                    if (!patient.hasMember(userId)) {
+                        update.add("userPatients/" + userId + "/" + id, JsonNull.INSTANCE);
+                    }
+                }
+            }
+        } else {
+            update.add(path, stored);
         }
         for (String userId : patient.careTeam().keySet()) {
             if (patient.hasMember(userId)) {
                 update.add("userPatients/" + userId + "/" + id, new JsonPrimitive(true));
             }
         }
-        client.patch("", update);
+        if (!update.isEmpty()) {
+            client.patch("", update);
+        }
+    }
+
+    private static JsonElement valueOf(JsonObject object, String key) {
+        JsonElement value = object.get(key);
+        return value == null ? JsonNull.INSTANCE : value;
     }
 
     private Patient toPatient(String id, JsonElement element) {

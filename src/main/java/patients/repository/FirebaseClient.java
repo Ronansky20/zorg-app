@@ -22,12 +22,22 @@ public class FirebaseClient {
 
     private final URI databaseUrl;
     private final Supplier<String> authToken;
+    private final String adminToken;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
     private final Gson gson = GsonFactory.builder().serializeNulls().create();
 
     public FirebaseClient(URI databaseUrl, Supplier<String> authToken) {
+        this(databaseUrl, authToken, null);
+    }
+
+    private FirebaseClient(URI databaseUrl, Supplier<String> authToken, String adminToken) {
         this.databaseUrl = databaseUrl;
         this.authToken = authToken;
+        this.adminToken = adminToken;
+    }
+
+    public static FirebaseClient admin(URI databaseUrl, String adminToken) {
+        return new FirebaseClient(databaseUrl, () -> null, adminToken);
     }
 
     public JsonElement get(String path) {
@@ -43,13 +53,16 @@ public class FirebaseClient {
     }
 
     private JsonElement send(String method, String path, JsonElement body) {
-        HttpRequest request = HttpRequest.newBuilder(uriFor(path))
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uriFor(path))
                 .timeout(TIMEOUT)
                 .header("Content-Type", "application/json")
                 .method(method, body == null
                         ? HttpRequest.BodyPublishers.noBody()
-                        : HttpRequest.BodyPublishers.ofString(gson.toJson(body)))
-                .build();
+                        : HttpRequest.BodyPublishers.ofString(gson.toJson(body)));
+        if (adminToken != null && !adminToken.isBlank()) {
+            builder.header("Authorization", "Bearer " + adminToken);
+        }
+        HttpRequest request = builder.build();
         HttpResponse<String> response;
         try {
             response = http.send(request, HttpResponse.BodyHandlers.ofString());

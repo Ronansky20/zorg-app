@@ -30,6 +30,11 @@ public class MigrateToFirebase {
             System.err.println("Set ZORG_FIREBASE_URL to the database to migrate to, see the README");
             System.exit(1);
         }
+        String adminToken = System.getenv("ZORG_FIREBASE_ADMIN_TOKEN");
+        if (adminToken == null || adminToken.isBlank()) {
+            System.err.println("Set ZORG_FIREBASE_ADMIN_TOKEN (the emulator accepts 'owner'), see the README");
+            System.exit(1);
+        }
         Path usersFile = Paths.get("users.json");
         Path patientsFile = Paths.get("patients.json");
         if (!Files.exists(usersFile)) {
@@ -40,8 +45,7 @@ public class MigrateToFirebase {
             System.out.println("No " + patientsFile.toAbsolutePath() + "; only the users are migrated");
         }
 
-        FirebaseClient client = new FirebaseClient(URI.create(firebaseUrl),
-                () -> System.getenv("ZORG_FIREBASE_TOKEN"));
+        FirebaseClient client = FirebaseClient.admin(URI.create(firebaseUrl), adminToken);
         System.out.println("Migrating to Firebase at " + firebaseUrl);
         try {
             Result result = migrate(new JsonUserRepository(usersFile), new JsonPatientRepository(patientsFile),
