@@ -1,11 +1,9 @@
 package patients.repository;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.TypeAdapter;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonToken;
-import com.google.gson.stream.JsonWriter;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import patients.model.Patient;
 
@@ -16,83 +14,94 @@ import java.io.Writer;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.SecureRandom;
-import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class JsonPatientRepository implements PatientRepository {
 
-    private static final Type FILE_TYPE =
-            new TypeToken<Map<String, List<Patient>>>() {}.getType();
+    private static final String PATIENTS_KEY = "patients";
+    private static final Type PATIENTS_TYPE =
+            new TypeToken<LinkedHashMap<String, Patient>>() {}.getType();
 
     private final Path file;
-    private final Gson gson = new GsonBuilder()
+    private final Gson gson = GsonFactory.builder()
             .setPrettyPrinting()
-            .registerTypeAdapter(LocalDate.class, new LocalDateAdapter())
             .create();
-    private String groupKey; // read from the file, or generated on first save
 
     public JsonPatientRepository(Path file) {
         this.file = file;
     }
 
     @Override
-    public List<Patient> loadAll() {
-        if (!Files.exists(file)) {
-            return new ArrayList<>();
+    public List<Patient> findAll() {
+        List<Patient> patients = new ArrayList<>();
+        for (Map.Entry<String, Patient> entry : readFile().entrySet()) {
+            patients.add(entry.getValue().withId(entry.getKey()));
         }
-        try (Reader reader = Files.newBufferedReader(file)) {
-            Map<String, List<Patient>> data = gson.fromJson(reader, FILE_TYPE);
-            if (data == null || data.isEmpty()) {
-                return new ArrayList<>();
-            }
-            Map.Entry<String, List<Patient>> entry = data.entrySet().iterator().next();
-            groupKey = entry.getKey();
-            return entry.getValue() != null ? new ArrayList<>(entry.getValue()) : new ArrayList<>();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Could not load " + file, e);
-        }
+        return patients;
     }
 
     @Override
-    public void saveAll(List<Patient> patients) {
-        if (groupKey == null) {
-            groupKey = generateKey();
+    public Optional<Patient> findById(String id) {
+        return Optional.ofNullable(readFile().get(id)).map(p -> p.withId(id));
+    }
+
+    @Override
+    public void save(Patient patient) {
+        if (patient.id() == null) {
+            throw new IllegalArgumentException("Can't save a patient without an id");
         }
+
+        Map<String, Patient> patients = readFile();
+        patients.put(patient.id(), patient.withId(null));
         try (Writer writer = Files.newBufferedWriter(file)) {
-            gson.toJson(Map.of(groupKey, patients), writer);
+            gson.toJson(Map.of(PATIENTS_KEY, patients), writer);
         } catch (IOException e) {
             throw new UncheckedIOException("Could not save " + file, e);
         }
     }
 
-    private static String generateKey() {
-        byte[] bytes = new byte[9];
-        new SecureRandom().nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    private Map<String, Patient> readFile() {
+        Map<String, Patient> patients = new LinkedHashMap<>();
+        if (!Files.exists(file)) {
+            return patients;
+        }
+        JsonElement root;
+        try (Reader reader = Files.newBufferedReader(file)) {
+            root = JsonParser.parseReader(reader);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not load " + file, e);
+        }
+        if (root.isJsonNull()) {
+            return patients;
+        }
+        if (!root.isJsonObject()) {
+            throw unknownFormat();
+        }
+        JsonObject object = root.getAsJsonObject();
+        if (object.isEmpty()) {
+            return patients;
+        }
+        if (!object.has(PATIENTS_KEY)) {
+            throw unknownFormat();
+        }
+        Map<String, Patient> stored = gson.fromJson(object.get(PATIENTS_KEY), PATIENTS_TYPE);
+        if (stored != null) {
+            stored.forEach((id, patient) -> {
+                if (patient != null) {
+                    patients.put(id, patient);
+                }
+            });
+        }
+        return patients;
     }
 
-    // Gson can't reflect into java.time on modern JDKs, so dates are stored as ISO strings (yyyy-MM-dd).
-    private static class LocalDateAdapter extends TypeAdapter<LocalDate> {
-        @Override
-        public void write(JsonWriter out, LocalDate date) throws IOException {
-            if (date == null) {
-                out.nullValue();
-            } else {
-                out.value(date.toString());
-            }
-        }
-
-        @Override
-        public LocalDate read(JsonReader in) throws IOException {
-            if (in.peek() == JsonToken.NULL) {
-                in.nextNull();
-                return null;
-            }
-            return LocalDate.parse(in.nextString());
-        }
+    private UncheckedIOException unknownFormat() {
+        String message = file + " is not in the expected format ({ \"patients\": { ... } })."
+                + " Files from older versions need to be rewritten, see the README";
+        return new UncheckedIOException(message, new IOException(message));
     }
 }

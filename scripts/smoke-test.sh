@@ -82,6 +82,7 @@ expect doctor.out "Medication: Paracetamol 500 mg, 3x daily; Ibuprofen 400 mg, a
 
 echo "Patient is saved to patients.json"
 if [[ -f patients.json ]]; then
+    expect patients.json '"patients": {'
     expect patients.json '"firstName": "Jane"'
     expect patients.json '"birthDate": "1995-06-15"'
     expect patients.json '"name": "Paracetamol"'

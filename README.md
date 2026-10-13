@@ -96,13 +96,14 @@ What happens, in order:
    range is rejected and you are asked again. There is no password. Picking a
    profession is the "login" and only decides which menu options you get.
 2. **Patients are loaded** from `patients.json`. If the file is missing the app
-   starts with an empty list; if it exists but cannot be read, a warning is
-   printed and the app continues with an empty list.
+   starts with an empty list; if it exists but cannot be read (or is in the old
+   format, see [Data file](#data-file)), a warning is printed and the app
+   continues with an empty list.
 3. **Main menu.** The menu lists only the actions your profession is allowed to
    perform, numbered from 1, plus `0. Quit`. After each action you return to the
-   menu, so you can view and add as often as you like in one session.
-4. **Quit (`0`).** The full in-memory list (the patients loaded from disk plus
-   any you added) is written back to `patients.json`, replacing the file.
+   menu, so you can view and add as often as you like in one session. Every
+   patient you add or edit is **saved to `patients.json` straight away**.
+4. **Quit (`0`).** Ends the session. There is nothing left to save.
 
 ### Permissions
 
@@ -170,10 +171,8 @@ A doctor changes medication via **Edit Patient** → choose the patient →
 **Medication**, which opens a sub-menu to **Add**, **Change** (re-enter an entry)
 or **Remove** a medication. Who may see or edit it is defined in
 [FieldPermissions.java](src/main/java/patients/service/FieldPermissions.java) and
-enforced by `PatientService.update`.
-
-New patients are only kept in memory until you quit. Nothing is written to disk
-until then.
+enforced by `PatientService.update`, which compares every field with the stored
+patient and refuses the whole edit if any field you may not edit has changed.
 
 Input handling details:
 
@@ -182,8 +181,10 @@ Input handling details:
 - The date of birth must be a real date in `dd-mm-yyyy` form (e.g. `15-06-1995`)
   and not in the future. Weight and height accept decimals with either a comma
   or a dot (`70,5` and `70.5` are both fine). Invalid input is re-prompted.
-- All text input is trimmed. Empty answers are accepted and stored as empty
-  strings — there is no validation of names, addresses or specialists.
+- All text input is trimmed. First and last name must not be empty, and weight
+  and height must be greater than 0. A patient (or an edit) that breaks one of
+  these rules is refused with a message and nothing is saved. Addresses and
+  specialists may be left empty.
 - Age (in completed years) and BMI (`weight / (height * height)`) are computed
   on the fly ([Patient.age()](src/main/java/patients/model/Patient.java#L19-L25),
   [Patient.bmi()](src/main/java/patients/model/Patient.java#L15-L17)); neither is stored
@@ -195,13 +196,14 @@ Input handling details:
 `patients.json` lives in the project root and is **git-ignored** — it holds local
 data and is not shared through the repository.
 
-The file has one top-level key (a random, URL-safe, 12-character "group key")
-whose value is the list of patients:
+The file has the same shape as the Firebase Realtime Database tree the app will
+move to: a `patients` object whose keys are the patient ids (random, URL-safe,
+12 characters) and whose values are the patients:
 
 ```json
 {
-  "yo3xnW_q7Nnm": [
-    {
+  "patients": {
+    "yo3xnW_q7Nnm": {
       "firstName": "John",
       "lastName": "Doe",
       "birthDate": "1998-03-14",
@@ -222,31 +224,31 @@ whose value is the list of patients:
         }
       ]
     }
-  ]
+  }
 }
 ```
 
-> Data files written before medication was added have no `medications` key.
-> They still load, with an empty medication list.
-
-> The specialist field used to be called `physician`. Data files written before
-> the rename still load, but that value is ignored (the physiotherapist comes
-> back as `null`) and is dropped on the next save.
-
-- The key is read from the file on load and reused on save, so it stays stable
-  for a given data file. It is only generated (via `SecureRandom`) when saving a
-  file that has no key yet.
-- Only the **first** top-level entry is read. The format leaves room for multiple
-  groups, but the current code ignores everything after the first one.
+- The id is only stored as the key; it is not repeated inside the patient.
+  A new patient gets its id (via `SecureRandom`) when it is added.
+- Each add or edit reads the file, replaces that one patient and writes the file
+  back. Other patients in the file are left as they are.
 - The date of birth is stored as an ISO date string (`yyyy-MM-dd`).
 - Missing JSON fields are left at their Java defaults by Gson — an absent
-  `pharmacist` or `birthDate` becomes `null`. Nothing in the app currently
-  rejects such a record; a patient without a date of birth is listed with
-  `age: unknown`.
+  `pharmacist` or `birthDate` becomes `null`, and an absent `medications` becomes
+  an empty list.
 
-> Patients used to store a fixed `age` instead of a `birthDate`. Data files
-> written before that change still load, but the old `age` is ignored (shown as
-> `unknown`) and is dropped on the next save.
+### Upgrading an old `patients.json`
+
+Files written before patients had ids look like `{ "<group key>": [ ...patients... ] }`.
+The app does **not** convert them: it prints a warning, starts with an empty list
+and refuses to save, so your old file is never overwritten. Either delete the
+file to start empty, or rewrite it by hand into the shape above. For each patient:
+
+1. Give it a key under `"patients"`: any unique string without `. $ # [ ] /`.
+2. Replace an old `age` with a `birthDate` (`yyyy-MM-dd`) and rename an old
+   `physician` specialist to `physiotherapist`.
+3. Make sure first and last name are filled in and weight and height are above 0,
+   otherwise the patient can't be edited.
 
 ## Project structure
 
@@ -257,9 +259,11 @@ src/main/java/patients/
 ├── model/Medication.java                   one medication: name, dosage, frequency
 ├── model/Profession.java                   professions you can log in as
 ├── model/Action.java                       menu actions (view, add)
-├── repository/PatientRepository.java       storage interface (loadAll/saveAll)
+├── repository/PatientRepository.java       storage interface (findAll/findById/save)
 ├── repository/JsonPatientRepository.java   Gson-backed JSON file implementation
-├── service/PatientService.java             in-memory list, login, permission checks, load/save
+├── repository/GsonFactory.java             shared Gson setup (ISO dates)
+├── repository/Ids.java                     generates patient ids
+├── service/PatientService.java             cached list, login, permission checks, validation
 ├── service/ProfessionPermissions.java      which profession may perform which action
 └── ui/ConsoleUI.java                       login, menu, prompts, parsing, output formatting
 src/test/java/patients/                     JUnit 5 tests, mirroring src/main/java
@@ -280,11 +284,10 @@ Known gaps, so nobody goes looking for features that are not there yet:
   accounts or passwords.
 - **Pharmacists can't do anything** besides quit. They have no permitted actions
   yet.
-- **Save happens once**, when you choose `0. Quit`. If the app is interrupted
-  (Ctrl+C, crash), every patient added in that session is lost.
-- **No duplicate detection and no patient IDs** — three identical "John Doe"
-  records are three separate patients.
-- **Height is not guarded against zero**, so a patient with height `0` yields an
-  infinite BMI.
+- **No duplicate detection** — three identical "John Doe" records are three
+  separate patients, each with its own id.
+- **One user at a time.** Each save rewrites the whole file, so two sessions
+  running at once can still overwrite each other's changes. That goes away with
+  the move to Firebase.
 - **The console UI has no tests.** The model, repository, service and permissions
   are covered under [src/test/java/](src/test/java).

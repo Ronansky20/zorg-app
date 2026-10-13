@@ -21,7 +21,7 @@ class PatientTest {
     }
 
     private static Patient patientBornOn(LocalDate birthDate, double weight, double height) {
-        return new Patient("John", "Doe", birthDate, weight, height, "Elm Street 58",
+        return new Patient("id-1", "John", "Doe", birthDate, weight, height, "Elm Street 58",
                 new Patient.Specialists("Anon", "Anon", "Anon", "Anon"), List.of());
     }
 
@@ -68,7 +68,7 @@ class PatientTest {
 
     @Test
     void nullMedicationsBecomeAnEmptyList() {
-        Patient patient = new Patient("John", "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
+        Patient patient = new Patient("id-1", "John", "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
                 new Patient.Specialists("Anon", "Anon", "Anon", "Anon"), null);
 
         assertTrue(patient.medications().isEmpty());
@@ -105,5 +105,28 @@ class PatientTest {
         assertEquals(List.of(PARACETAMOL), patient.withWeight(80.0).medications());
         assertEquals(List.of(PARACETAMOL), patient.withHeight(1.9).medications());
         assertEquals(List.of(PARACETAMOL), patient.withAddress("Oak Lane 1").medications());
+    }
+
+    @Test
+    void withIdReplacesOnlyTheId() {
+        Patient patient = patientWith(70.0, 1.8);
+
+        Patient updated = patient.withId("id-2");
+
+        assertEquals("id-2", updated.id());
+        assertEquals(patient, updated.withId("id-1"));
+    }
+
+    @Test
+    void otherMutatorsKeepTheId() {
+        Patient patient = patientWith(70.0, 1.8);
+
+        assertEquals("id-1", patient.withFirstName("Jane").id());
+        assertEquals("id-1", patient.withLastName("Smith").id());
+        assertEquals("id-1", patient.withBirthDate(LocalDate.of(2000, 1, 1)).id());
+        assertEquals("id-1", patient.withWeight(80.0).id());
+        assertEquals("id-1", patient.withHeight(1.9).id());
+        assertEquals("id-1", patient.withAddress("Oak Lane 1").id());
+        assertEquals("id-1", patient.withMedications(List.of(PARACETAMOL)).id());
     }
 }

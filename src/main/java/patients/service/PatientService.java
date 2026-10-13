@@ -4,12 +4,20 @@ import patients.model.Patient;
 import patients.model.PatientField;
 import patients.model.Profession;
 import patients.model.Action;
+import patients.repository.Ids;
 import patients.repository.PatientRepository;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 public class PatientService {
+
+    private static final Comparator<Patient> BY_NAME = Comparator
+            .comparing(Patient::lastName, Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER))
+            .thenComparing(Patient::firstName, Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER))
+            .thenComparing(Patient::id, Comparator.nullsFirst(Comparator.naturalOrder()));
 
     private final PatientRepository repository;
     private final List<Patient> patients = new ArrayList<>();
@@ -34,25 +42,36 @@ public class PatientService {
 
     public void load() {
         patients.clear();
-        patients.addAll(repository.loadAll());
+        patients.addAll(repository.findAll());
+        patients.sort(BY_NAME);
     }
 
     public void add(Patient patient) {
         requirePermission(Action.ADD_PATIENT);
-        patients.add(patient);
+        validate(patient);
+        Patient toSave = patient.id() == null ? patient.withId(Ids.newId()) : patient;
+        repository.save(toSave);
+        patients.add(toSave);
     }
 
-    public void update(Patient oldPatient, Patient updatedPatient, PatientField patientField) {
+    public void update(Patient updatedPatient) {
         requirePermission(Action.EDIT_PATIENT);
-        if (!FieldPermissions.canEdit(currentProfession, patientField)) {
-            throw new SecurityException("You do not have the permission to edit " + patientField.label);
+        Patient existing = repository.findById(updatedPatient.id())
+                .orElseThrow(() -> new IllegalArgumentException("Patient not found"));
+
+        for (PatientField field : PatientField.values()) {
+            boolean changed = !Objects.equals(field.valueOf(existing), field.valueOf(updatedPatient));
+            if (changed && !FieldPermissions.canEdit(currentProfession, field)) {
+                throw new SecurityException("You do not have the permission to edit " + field.label);
+            }
         }
-        int patientPosition = patients.indexOf(oldPatient);
-        if (patientPosition == -1) {
-            throw new IllegalArgumentException("Patient not found");
-        } else {
-            patients.set(patientPosition, updatedPatient);
+        if (!Objects.equals(existing.specialists(), updatedPatient.specialists())) {
+            throw new SecurityException("Specialists can't be edited");
         }
+        validate(updatedPatient);
+
+        repository.save(updatedPatient);
+        patients.replaceAll(p -> p.id().equals(updatedPatient.id()) ? updatedPatient : p);
     }
 
     public List<Patient> getAll() {
@@ -60,7 +79,18 @@ public class PatientService {
         return List.copyOf(patients);
     }
 
-    public void save() {
-        repository.saveAll(patients);
+    private static void validate(Patient patient) {
+        if (patient.firstName() == null || patient.firstName().isBlank()) {
+            throw new IllegalArgumentException("First name can't be empty");
+        }
+        if (patient.lastName() == null || patient.lastName().isBlank()) {
+            throw new IllegalArgumentException("Last name can't be empty");
+        }
+        if (!(patient.weight() > 0)) {
+            throw new IllegalArgumentException("Weight must be greater than 0");
+        }
+        if (!(patient.height() > 0)) {
+            throw new IllegalArgumentException("Height must be greater than 0");
+        }
     }
 }
