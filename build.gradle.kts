@@ -29,6 +29,14 @@ tasks.named<JavaExec>("run") {
     workingDir = rootDir
 }
 
+tasks.register<JavaExec>("migrateToFirebase") {
+    group = "application"
+    description = "Copies users.json and patients.json to the Firebase database at ZORG_FIREBASE_URL"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass = "patients.MigrateToFirebase"
+    workingDir = rootDir
+}
+
 tasks.test {
     useJUnitPlatform()
     testLogging {

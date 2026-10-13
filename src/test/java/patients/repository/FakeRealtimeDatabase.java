@@ -18,24 +18,24 @@ import java.util.List;
 import java.util.Map;
 
 /** In-memory stand-in for the Firebase Realtime Database REST API: GET, PUT and (multi-path) PATCH. */
-class FakeRealtimeDatabase implements AutoCloseable {
+public class FakeRealtimeDatabase implements AutoCloseable {
 
     private final HttpServer server;
     private JsonObject root = new JsonObject();
     final List<String> requests = new ArrayList<>();
     int failWithStatus = 0;
 
-    FakeRealtimeDatabase() throws IOException {
+    public FakeRealtimeDatabase() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", this::handle);
         server.start();
     }
 
-    URI url() {
+    public URI url() {
         return URI.create("http://127.0.0.1:" + server.getAddress().getPort());
     }
 
-    synchronized JsonElement get(String path) {
+    public synchronized JsonElement get(String path) {
         JsonElement node = root;
         for (String key : segments(path)) {
             if (!node.isJsonObject() || !node.getAsJsonObject().has(key)) {
@@ -46,7 +46,7 @@ class FakeRealtimeDatabase implements AutoCloseable {
         return node.deepCopy();
     }
 
-    synchronized void set(String path, JsonElement value) {
+    public synchronized void set(String path, JsonElement value) {
         List<String> keys = segments(path);
         if (keys.isEmpty()) {
             root = value != null && value.isJsonObject() ? value.getAsJsonObject().deepCopy() : new JsonObject();

@@ -61,12 +61,20 @@ ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" ./gradle
 
 (PowerShell: `$env:ZORG_FIREBASE_URL = "http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb"` first.)
 
-The emulator starts empty and forgets everything when it stops. Until the
-migration script exists, load the dummy accounts with:
+The emulator starts empty and forgets everything when it stops. To load the
+accounts from `users.json` and the patients from `patients.json`, run the
+migration from the project root with the same `ZORG_FIREBASE_URL`:
 
 ```bash
-curl -X PATCH -d @users.json "http://127.0.0.1:9000/.json?ns=demo-zorg-app-default-rtdb"
+ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" ./gradlew migrateToFirebase -q --console=plain
 ```
+
+It writes every user and patient by id, and builds the `/userPatients` index
+along the way, so running it again gives the same data. Records that only
+exist in Firebase are left alone. It prints a warning for any care team member
+who isn't in `users.json`. If `patients.json` is missing, only the users are
+migrated; if it is in the old format (see [Data files](#data-files)), the
+migration stops before writing anything.
 
 > Don't point the app at a real Firebase project yet: there are no database
 > security rules until Firebase Auth is added, and this is medical data.
@@ -384,7 +392,8 @@ Known gaps, so nobody goes looking for features that are not there yet:
 - **One user at a time on JSON.** Each save rewrites the whole file, so two
   sessions running at once can still overwrite each other's changes. On Firebase
   each save only writes that one patient.
-- **No migration from JSON to Firebase yet.** Data entered in one backend isn't
-  visible in the other.
+- **The migration only goes one way.** `./gradlew migrateToFirebase` copies the
+  JSON files into Firebase, but nothing copies Firebase data back. After the
+  migration, data entered in one backend isn't visible in the other.
 - **The console UI has no tests.** The model, repository, service and permissions
   are covered under [src/test/java/](src/test/java).

@@ -28,7 +28,7 @@ if [[ -n "$firebase" ]]; then
     db_query=""
     [[ "$firebase" == *\?* ]] && db_query="${firebase#*\?}"
     db_url() { echo "${db_base%/}/$1.json?$db_query"; }
-    curl -sf -X PUT -d @users.json "$(db_url "")" > /dev/null
+    curl -sf -X PUT -d '{}' "$(db_url "")" > /dev/null
     echo "Running against the Firebase emulator at $firebase"
 fi
 
@@ -56,6 +56,17 @@ run_app() { # $1 = output file, stdin = scripted answers
         failures=$((failures + 1))
     fi
 }
+
+if [[ -n "$firebase" ]]; then
+    echo "Migration loads the accounts into Firebase"
+    java="${JAVA_HOME:+$JAVA_HOME/bin/}java"
+    if ! "$java" -cp "$root/build/install/zorg-app/lib/*" patients.MigrateToFirebase > migrate.out 2>&1; then
+        echo "  FAIL: migration exited with an error"
+        cat migrate.out
+        exit 1
+    fi
+    expect migrate.out "Migrated 8 users and 0 patients"
+fi
 
 echo "Doctor adds a patient with medication, adds more medication and sees every field"
 # Accounts are listed by profession, then name:

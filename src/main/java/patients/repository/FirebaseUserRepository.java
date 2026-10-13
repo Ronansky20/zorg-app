@@ -37,4 +37,11 @@ public class FirebaseUserRepository implements UserRepository {
                 ? Optional.of(gson.fromJson(element, User.class).withId(id))
                 : Optional.empty();
     }
+
+    public void save(User user) {
+        if (user.id() == null) {
+            throw new IllegalArgumentException("Can't save a user without an id");
+        }
+        client.put("users/" + user.id(), gson.toJsonTree(user.withId(null)));
+    }
 }

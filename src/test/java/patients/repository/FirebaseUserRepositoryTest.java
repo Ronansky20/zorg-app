@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FirebaseUserRepositoryTest {
@@ -59,5 +60,31 @@ class FirebaseUserRepositoryTest {
     @Test
     void emptyDatabaseHasNoUsers() {
         assertTrue(repository.findAll().isEmpty());
+    }
+
+    @Test
+    void savedUserIsStoredUnderItsIdWithoutAnIdField() {
+        User jansen = new User("jansen", "Dr. Max Jansen", Profession.DOCTOR);
+
+        repository.save(jansen);
+
+        assertEquals(JsonParser.parseString("{ \"name\": \"Dr. Max Jansen\", \"profession\": \"DOCTOR\" }"),
+                database.get("users/jansen"));
+        assertEquals(Optional.of(jansen), repository.findById("jansen"));
+    }
+
+    @Test
+    void savingAgainReplacesTheUser() {
+        repository.save(new User("jansen", "Dr. Max Jansen", Profession.DOCTOR));
+
+        repository.save(new User("jansen", "Dr. M. Jansen", Profession.DOCTOR));
+
+        assertEquals(List.of(new User("jansen", "Dr. M. Jansen", Profession.DOCTOR)), repository.findAll());
+    }
+
+    @Test
+    void savingWithoutAnIdIsRejected() {
+        assertThrows(IllegalArgumentException.class,
+                () -> repository.save(new User(null, "Dr. Max Jansen", Profession.DOCTOR)));
     }
 }

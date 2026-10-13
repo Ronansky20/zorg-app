@@ -155,7 +155,17 @@ The tree looks like this:
 [FirebaseUserRepository](../src/main/java/patients/repository/FirebaseUserRepository.java)
 reads `/users`. Firebase returns keys in alphabetical order, so `UserService` and
 `PatientService` sort what they load. That keeps the numbered lists in the UI
-the same on both backends.
+the same on both backends. Its `save()` (a `PUT` on `/users/<id>`) is only used
+by the migration. It isn't on the `UserRepository` interface, because the app
+never writes users.
+
+[MigrateToFirebase](../src/main/java/patients/MigrateToFirebase.java) is a second
+`main`, run with `./gradlew migrateToFirebase`. It reads `users.json` and
+`patients.json` through the JSON repositories and saves every record through the
+Firebase ones, so the `/userPatients` index is built by the same `save()` the app
+uses. Because every write is by id, running it again gives the same data. Before
+writing anything it collects a warning for each care team member who isn't a
+known user.
 
 Swapping storage means writing another `PatientRepository` / `UserRepository` (a
 database, a CSV file, an in-memory fake for tests) and choosing it in `App`.
