@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,8 +30,21 @@ class JsonPatientRepositoryTest {
 
     private static Patient patient(String id, String firstName) {
         return new Patient(id, firstName, "Doe", LocalDate.of(1995, 6, 15), 70.0, 1.8, "Elm Street 58",
-                new Patient.Specialists("Doctor Anon", "Pharmacist Anon", "Physio Anon", "Dentist Anon"),
+                Map.of("jansen", true, "devries", true),
                 List.of(new Medication("Paracetamol", "500 mg", "3x daily")));
+    }
+
+    @Test
+    void careTeamIsStoredAsAnObjectOfUserIds() throws IOException {
+        Path file = tempDir.resolve("patients.json");
+        new JsonPatientRepository(file).save(patient("a1", "John"));
+
+        JsonObject careTeam = JsonParser.parseString(Files.readString(file)).getAsJsonObject()
+                .getAsJsonObject("patients").getAsJsonObject("a1").getAsJsonObject("careTeam");
+        assertTrue(careTeam.get("jansen").getAsBoolean());
+        assertTrue(careTeam.get("devries").getAsBoolean());
+        assertEquals(Map.of("jansen", true, "devries", true),
+                new JsonPatientRepository(file).findById("a1").orElseThrow().careTeam());
     }
 
     @Test

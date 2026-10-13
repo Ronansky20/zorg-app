@@ -4,6 +4,9 @@
 !.vscode/extensions.json
 patients.json
 
+# Firebase emulator logs
+*-debug.log
+
 # Gradle
 .gradle/
 build/

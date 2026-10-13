@@ -1,13 +1,16 @@
 package patients.ui;
 
+import patients.auth.Authenticator;
 import patients.model.Medication;
 import patients.model.Patient;
 import patients.model.PatientField;
 import patients.model.Profession;
+import patients.model.User;
 import patients.model.Action;
 import patients.service.FieldPermissions;
 import patients.service.PatientService;
 import patients.service.ProfessionPermissions;
+import patients.service.UserService;
 
 import java.io.UncheckedIOException;
 import java.time.LocalDate;
@@ -15,33 +18,47 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.Scanner;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class ConsoleUI {
 
+    private static final int MAX_SIGN_IN_ATTEMPTS = 3;
+
     private final PatientService service;
+    private final UserService userService;
+    private final Authenticator authenticator;
     private final Scanner scan = new Scanner(System.in);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd-MM-uuuu")
             .withResolverStyle(ResolverStyle.STRICT);
 
-    public ConsoleUI(PatientService service) {
+    public ConsoleUI(PatientService service, UserService userService) {
+        this(service, userService, null);
+    }
+
+    public ConsoleUI(PatientService service, UserService userService, Authenticator authenticator) {
         this.service = service;
+        this.userService = userService;
+        this.authenticator = authenticator;
     }
 
     public void run() {
-
-        System.out.println("Hello, please choose your profession");
-        Profession profession = askProfession();
-        service.login(profession);
-        System.out.println("Welcome " + profession.label);
+        User user = authenticator == null ? chooseAccount() : signIn();
+        if (user == null) {
+            return;
+        }
+        service.login(user);
+        System.out.println("Welcome " + formatUser(user));
 
         loadPatients();
 
         System.out.println("Welcome to the patient management system!");
 
-        mainMenu(profession);
+        mainMenu(user.profession());
     }
 
     private void mainMenu(Profession profession) {
@@ -88,36 +105,64 @@ public class ConsoleUI {
         }
     }
 
-    private Profession askProfession() {
-        int i = 1;
-        for (Profession p : Profession.values()) {
-            System.out.println(i + ". " + p.label);
-            i++;
+    private User chooseAccount() {
+        loadUsers();
+        if (userService.getAll().isEmpty()) {
+            System.out.println("No user accounts found, add them to users.json");
+            return null;
+        }
+        System.out.println("Hello, please choose your account");
+        return askUser();
+    }
+
+    private User signIn() {
+        System.out.println("Hello, please sign in");
+        String userId = null;
+        for (int attempt = 1; userId == null; attempt++) {
+            if (attempt > MAX_SIGN_IN_ATTEMPTS) {
+                System.out.println("Too many failed attempts");
+                return null;
+            }
+            String email = readLine("Email: ");
+            String password = readLine("Password: ");
+            try {
+                userId = authenticator.signIn(email, password);
+            } catch (SecurityException e) {
+                System.out.println(e.getMessage());
+            } catch (UncheckedIOException e) {
+                System.out.println("Error: " + e.getMessage());
+                return null;
+            }
+        }
+
+        loadUsers();
+        Optional<User> user = userService.findById(userId);
+        if (user.isEmpty()) {
+            System.out.println("Your login has no account in the database, ask an administrator to add it");
+        }
+        return user.orElse(null);
+    }
+
+    private User askUser() {
+        List<User> users = userService.getAll();
+        for (int i = 0; i < users.size(); i++) {
+            System.out.println((i + 1) + ". " + formatUser(users.get(i)));
         }
 
         while (true) {
-            try {
-                Profession profession = professionSwitch(
-                        readInt("Please choose your profession 1-" + Profession.values().length));
-                return profession;
-            } catch (IllegalArgumentException e) {
-                System.out.println("That is not a profession, please try again.");
+            int userChoice = readInt("Please choose your account 1-" + users.size());
+            if (userChoice >= 1 && userChoice <= users.size()) {
+                return users.get(userChoice - 1);
             }
+            System.out.println("That is not an account, please try again.");
         }
     }
 
-    private Profession professionSwitch(int professionChoice) {
-        switch (professionChoice) {
-            case 1:
-                return Profession.DOCTOR;
-            case 2:
-                return Profession.PHARMACIST;
-            case 3:
-                return Profession.PHYSIOTHERAPIST;
-            case 4:
-                return Profession.DENTIST;
-            default:
-                throw new IllegalArgumentException("Invalid profession choice: " + professionChoice);
+    private void loadUsers() {
+        try {
+            userService.load();
+        } catch (UncheckedIOException e) {
+            System.out.println("Error: " + e.getMessage());
         }
     }
 
@@ -137,15 +182,43 @@ public class ConsoleUI {
         double height = readDouble("Enter the new patient's height (m): ");
         String address = readLine("Enter the patient's address: ");
 
-        Patient.Specialists specialists = new Patient.Specialists(
-                readLine("Enter the patient's doctor: "),
-                readLine("Enter the patient's pharmacist: "),
-                readLine("Enter the patient's physiotherapist: "),
-                readLine("Enter the patient's dentist: "));
+        Map<String, Boolean> careTeam = readCareTeam();
 
         List<Medication> medications = readMedications();
 
-        return new Patient(null, firstName, lastName, birthDate, weight, height, address, specialists, medications);
+        return new Patient(null, firstName, lastName, birthDate, weight, height, address, careTeam, medications);
+    }
+
+    private Map<String, Boolean> readCareTeam() {
+        Map<String, Boolean> careTeam = new LinkedHashMap<>();
+        for (Profession profession : Profession.values()) {
+            User member = chooseUser(userService.getByProfession(profession),
+                    "Choose the patient's " + profession.label.toLowerCase() + " (0 = none)");
+            if (member != null) {
+                careTeam.put(member.id(), true);
+            }
+        }
+        return careTeam;
+    }
+
+    private User chooseUser(List<User> users, String prompt) {
+        if (users.isEmpty()) {
+            return null;
+        }
+        while (true) {
+            System.out.println("0. None");
+            for (int i = 0; i < users.size(); i++) {
+                System.out.println((i + 1) + ". " + users.get(i).name());
+            }
+            int userChoice = readInt(prompt);
+
+            if (userChoice < 0 || userChoice > users.size()) {
+                System.out.println("Invalid choice. Try again.");
+                continue;
+            }
+
+            return userChoice == 0 ? null : users.get(userChoice - 1);
+        }
     }
 
     private List<Medication> readMedications() {
@@ -173,8 +246,28 @@ public class ConsoleUI {
             for (PatientField field : viewableFields) {
                 System.out.println(field.label + ": " + fieldValue(p, field));
             }
+            System.out.println("Care team: " + formatCareTeam(p));
             System.out.println("----------");
         }
+    }
+
+    private String formatCareTeam(Patient patient) {
+        List<String> members = new ArrayList<>();
+        for (User user : userService.getAll()) {
+            if (patient.hasMember(user.id())) {
+                members.add(formatUser(user));
+            }
+        }
+        for (String userId : patient.careTeam().keySet()) {
+            if (patient.hasMember(userId) && userService.findById(userId).isEmpty()) {
+                members.add(userId);
+            }
+        }
+        return members.isEmpty() ? "none" : String.join(", ", members);
+    }
+
+    private String formatUser(User user) {
+        return user.name() + " (" + user.profession().label + ")";
     }
 
     private String fieldValue(Patient patient, PatientField patientField) {

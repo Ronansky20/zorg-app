@@ -29,8 +29,40 @@ tasks.named<JavaExec>("run") {
     workingDir = rootDir
 }
 
+tasks.register<JavaExec>("migrateToFirebase") {
+    group = "application"
+    description = "Copies users.json and patients.json to the Firebase database at ZORG_FIREBASE_URL"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass = "patients.MigrateToFirebase"
+    workingDir = rootDir
+}
+
+tasks.register<JavaExec>("generateFirebaseRules") {
+    group = "application"
+    description = "Writes database.rules.json from ProfessionPermissions and FieldPermissions"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass = "patients.FirebaseRules"
+    workingDir = rootDir
+}
+
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags("emulator")
+    }
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
+}
+
+tasks.register<Test>("emulatorTest") {
+    group = "verification"
+    description = "Runs the tests tagged 'emulator' against the Firebase emulators, see the README"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform {
+        includeTags("emulator")
+    }
+    outputs.upToDateWhen { false }
     testLogging {
         events("passed", "skipped", "failed")
     }

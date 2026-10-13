@@ -2,14 +2,16 @@ package patients.service;
 
 import patients.model.Patient;
 import patients.model.PatientField;
-import patients.model.Profession;
+import patients.model.User;
 import patients.model.Action;
 import patients.repository.Ids;
 import patients.repository.PatientRepository;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class PatientService {
@@ -21,19 +23,19 @@ public class PatientService {
 
     private final PatientRepository repository;
     private final List<Patient> patients = new ArrayList<>();
-    private Profession currentProfession;
+    private User currentUser;
 
     private void requirePermission(Action action) {
-        if (currentProfession == null) {
+        if (currentUser == null) {
             throw new IllegalStateException("No user is logged in");
         }
-        if (!ProfessionPermissions.isAllowed(currentProfession, action)) {
-            throw new SecurityException(currentProfession.label + " is not allowed to " + action.label);
+        if (!ProfessionPermissions.isAllowed(currentUser.profession(), action)) {
+            throw new SecurityException(currentUser.profession().label + " is not allowed to " + action.label);
         }
     }
 
-    public void login(Profession profession) {
-        this.currentProfession = profession;
+    public void login(User user) {
+        this.currentUser = user;
     }
 
     public PatientService(PatientRepository repository) {
@@ -41,15 +43,23 @@ public class PatientService {
     }
 
     public void load() {
+        if (currentUser == null) {
+            throw new IllegalStateException("No user is logged in");
+        }
         patients.clear();
-        patients.addAll(repository.findAll());
+        patients.addAll(repository.findAllForUser(currentUser.id()));
         patients.sort(BY_NAME);
     }
 
     public void add(Patient patient) {
         requirePermission(Action.ADD_PATIENT);
         validate(patient);
-        Patient toSave = patient.id() == null ? patient.withId(Ids.newId()) : patient;
+        Map<String, Boolean> careTeam = new LinkedHashMap<>(patient.careTeam());
+        careTeam.put(currentUser.id(), true);
+        Patient toSave = patient.withCareTeam(careTeam);
+        if (toSave.id() == null) {
+            toSave = toSave.withId(Ids.newId());
+        }
         repository.save(toSave);
         patients.add(toSave);
     }
@@ -58,15 +68,18 @@ public class PatientService {
         requirePermission(Action.EDIT_PATIENT);
         Patient existing = repository.findById(updatedPatient.id())
                 .orElseThrow(() -> new IllegalArgumentException("Patient not found"));
+        if (!existing.hasMember(currentUser.id())) {
+            throw new SecurityException("You are not on this patient's care team");
+        }
 
         for (PatientField field : PatientField.values()) {
             boolean changed = !Objects.equals(field.valueOf(existing), field.valueOf(updatedPatient));
-            if (changed && !FieldPermissions.canEdit(currentProfession, field)) {
+            if (changed && !FieldPermissions.canEdit(currentUser.profession(), field)) {
                 throw new SecurityException("You do not have the permission to edit " + field.label);
             }
         }
-        if (!Objects.equals(existing.specialists(), updatedPatient.specialists())) {
-            throw new SecurityException("Specialists can't be edited");
+        if (!Objects.equals(existing.careTeam(), updatedPatient.careTeam())) {
+            throw new SecurityException("The care team can't be edited");
         }
         validate(updatedPatient);
 
@@ -76,7 +89,9 @@ public class PatientService {
 
     public List<Patient> getAll() {
         requirePermission(Action.VIEW_LIST);
-        return List.copyOf(patients);
+        return patients.stream()
+                .filter(p -> p.hasMember(currentUser.id()))
+                .toList();
     }
 
     private static void validate(Patient patient) {

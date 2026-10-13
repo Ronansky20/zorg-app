@@ -2,7 +2,10 @@ package patients.model;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public record Patient(
         String id,
@@ -12,11 +15,16 @@ public record Patient(
         double weight,
         double height,
         String address,
-        Specialists specialists,
+        Map<String, Boolean> careTeam,
         List<Medication> medications) {
 
     public Patient {
+        careTeam = careTeam == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(careTeam));
         medications = medications == null ? List.of() : List.copyOf(medications);
+    }
+
+    public boolean hasMember(String userId) {
+        return Boolean.TRUE.equals(careTeam.get(userId));
     }
 
     public Patient withId(String newId) {
@@ -26,7 +34,7 @@ public record Patient(
                 this.birthDate(),
                 this.weight(), this.height(),
                 this.address(),
-                this.specialists(),
+                this.careTeam(),
                 this.medications());
     }
 
@@ -37,7 +45,7 @@ public record Patient(
                 this.birthDate(),
                 this.weight(), this.height(),
                 this.address(),
-                this.specialists(),
+                this.careTeam(),
                 this.medications());
     }
 
@@ -48,7 +56,7 @@ public record Patient(
                 this.birthDate(),
                 this.weight(), this.height(),
                 this.address(),
-                this.specialists(),
+                this.careTeam(),
                 this.medications());
     }
 
@@ -59,7 +67,7 @@ public record Patient(
                 newBirthDate,
                 this.weight(), this.height(),
                 this.address(),
-                this.specialists(),
+                this.careTeam(),
                 this.medications());
     }
 
@@ -70,7 +78,7 @@ public record Patient(
                 this.birthDate(),
                 newWeight, this.height(),
                 this.address(),
-                this.specialists(),
+                this.careTeam(),
                 this.medications());
     }
 
@@ -81,7 +89,7 @@ public record Patient(
                 this.birthDate(),
                 this.weight(), newHeight,
                 this.address(),
-                this.specialists(),
+                this.careTeam(),
                 this.medications());
     }
 
@@ -92,7 +100,18 @@ public record Patient(
                 this.birthDate(),
                 this.weight(), this.height(),
                 newAddress,
-                this.specialists(),
+                this.careTeam(),
+                this.medications());
+    }
+
+    public Patient withCareTeam(Map<String, Boolean> newCareTeam) {
+        return new Patient(
+                this.id(),
+                this.firstName(), this.lastName(),
+                this.birthDate(),
+                this.weight(), this.height(),
+                this.address(),
+                newCareTeam,
                 this.medications());
     }
 
@@ -103,7 +122,7 @@ public record Patient(
                 this.birthDate(),
                 this.weight(), this.height(),
                 this.address(),
-                this.specialists(),
+                this.careTeam(),
                 newMedications);
     }
 
@@ -117,12 +136,5 @@ public record Patient(
 
     public int age(LocalDate today) {
         return Period.between(birthDate, today).getYears();
-    }
-
-    public record Specialists(
-            String doctor,
-            String pharmacist,
-            String physiotherapist,
-            String dentist) {
     }
 }
