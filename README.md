@@ -108,18 +108,56 @@ example, weight must be a number above 0).
 
 #### A real Firebase project
 
-This is medical data (GDPR). Keep **only dummy data** in a real project, and:
+This is medical data (GDPR). Keep **only dummy data** in a real project. The
+project is `zorg-app-74d7b` ([.firebaserc](.firebaserc)), with its database at
+`https://zorg-app-74d7b-default-rtdb.europe-west1.firebasedatabase.app`
+(`europe-west1`, created in locked mode). To set it up from scratch:
 
-1. Create the Realtime Database in `europe-west1`, in **locked mode** (never
-   "test mode").
-2. Deploy the rules before adding any data:
-   `npx -y firebase-tools@15.33.0 deploy --only database --project <project-id>`.
-3. Create the Auth accounts with uids equal to the keys in `users.json`, for
-   example with `firebase auth:import` (the console can't choose uids).
-4. Migrate with `ZORG_FIREBASE_ADMIN_TOKEN` set to an OAuth access token of an
-   account with database admin rights.
-5. Run the app with `ZORG_FIREBASE_URL=https://<db>.europe-west1.firebasedatabase.app`
-   and `ZORG_FIREBASE_API_KEY` set; leave `FIREBASE_AUTH_EMULATOR_HOST` unset.
+1. Log in to the Firebase CLI and deploy the rules before adding any data:
+
+   ```bash
+   npx -y firebase-tools@15.33.0 login
+   npx -y firebase-tools@15.33.0 deploy --only database
+   ```
+
+2. In the Firebase console, enable **Authentication → Sign-in method →
+   Email/Password**, and copy the **Web API key** from Project settings → General.
+3. Install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
+   (`brew install --cask google-cloud-sdk` on macOS) and get an admin token for
+   your Google account:
+
+   ```bash
+   gcloud auth application-default login --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/firebase.database
+   gcloud auth application-default set-quota-project zorg-app-74d7b
+   export ZORG_FIREBASE_ADMIN_TOKEN="$(gcloud auth application-default print-access-token)"
+   ```
+
+   The token is valid for an hour; run the `export` again when it expires.
+4. Create a login for every account in `users.json`. The uid is the key and the
+   email is `<key>@zorg.test`, as in the emulator, but you choose the password (it
+   asks). Existing logins are left alone, so it can be run again:
+
+   ```bash
+   ./scripts/create-firebase-accounts.sh
+   ```
+
+5. Load the users and patients:
+
+   ```bash
+   ZORG_FIREBASE_URL="https://zorg-app-74d7b-default-rtdb.europe-west1.firebasedatabase.app" \
+       ./gradlew migrateToFirebase -q --console=plain
+   ```
+
+6. Run the app. Leave `FIREBASE_AUTH_EMULATOR_HOST` unset, or sign-in goes to
+   the emulator:
+
+   ```bash
+   ZORG_FIREBASE_URL="https://zorg-app-74d7b-default-rtdb.europe-west1.firebasedatabase.app" \
+   ZORG_FIREBASE_API_KEY="<web-api-key>" ./gradlew run -q --console=plain
+   ```
+
+After changing the permissions, run `./gradlew generateFirebaseRules` and deploy
+again (step 1).
 
 ## Tests
 
@@ -471,6 +509,8 @@ users.json                                  dummy user accounts (committed)
 database.rules.json                         Firebase security rules (generated, committed)
 firebase.json                               emulator ports and rules file
 scripts/create-emulator-accounts.sh         creates a login per account in the Auth emulator
+scripts/create-firebase-accounts.sh         creates a login per account in the real project
+.firebaserc                                 links the Firebase CLI to project zorg-app-74d7b
 patients.json                               local data file (git-ignored)
 ```
 
