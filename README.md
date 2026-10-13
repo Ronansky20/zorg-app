@@ -4,7 +4,8 @@ A small Java application for recording patients and their care team. You log in
 as a care provider, then view, add and edit the patients whose care team you are
 on. Your profession decides which of these you may do and which fields you may
 see and change. There are two front ends on the same business rules: a console
-app, and a Spring Boot REST API for a web frontend (see [Web app](#web-app)).
+app, and a web app — a Spring Boot REST API with a React frontend in
+[frontend/](frontend) (see [Web app](#web-app)).
 Data is stored in local JSON files by default, or in a Firebase Realtime
 Database with sign-in and server-side security rules (see
 [Running against Firebase](#running-against-firebase)).
@@ -16,6 +17,8 @@ Database with sign-in and server-side security rules (see
 - **Spring Boot 4.1.1**, **Gson 2.14.0** and **JUnit** — declared in
   [build.gradle.kts](build.gradle.kts) and downloaded from Maven Central. The
   Spring Boot BOM picks the versions of Spring, Jackson, Tomcat and JUnit
+- **Node.js 20.19+ or 22.12+** — only for the web frontend (Vite) and the
+  Firebase emulators
 
 The project builds with Gradle. You don't need to install it: the Gradle wrapper
 (`./gradlew`) downloads the right version on first use. It runs on whatever JDK is
@@ -92,8 +95,30 @@ A patient's `careTeam` comes back as `[{id, name, profession}]`. Errors are
 401 not signed in or wrong credentials, 403 not allowed, 404 not found, 400
 invalid input, 502 the storage failed. Show `detail` to the user.
 
-For a frontend on the Vite dev server, proxy `/api` to `http://localhost:8080`
-so the browser sees one origin and sends the session cookie.
+### Frontend
+
+The frontend in [frontend/](frontend) is React on Vite, styled with Tailwind CSS
+v4 and [shadcn/ui](https://ui.shadcn.com). One command starts it together with
+the backend:
+
+```bash
+cd frontend
+npm install            # first time only
+npm run dev            # backend (./gradlew bootRun) + Vite, JSON mode
+npm run dev:firebase   # the same against the local Firebase emulators
+```
+
+Open the URL Vite prints (usually <http://localhost:5173>). Ctrl+C stops
+everything. Both run [scripts/dev.sh](scripts/dev.sh), so they need bash; on
+Windows without Git Bash or WSL, start the backend yourself and use
+`npm run dev:web`, which starts only Vite. The backend needs a few seconds
+longer than Vite, so a page opened straight away shows proxy errors until Spring
+Boot is up.
+
+The Vite dev server proxies `/api` to `http://127.0.0.1:8080`, so the browser
+sees one origin and sends the session cookie. [frontend/src/api.js](frontend/src/api.js)
+wraps `fetch`: it adds the `X-Zorg-Client` header to requests that change data
+and throws an `Error` with the problem's `detail`.
 
 ### Running against Firebase
 
@@ -142,6 +167,10 @@ Use `bootRun` instead of `run` for the web app. It refuses to start when
 `ZORG_FIREBASE_API_KEY` is. Each web session signs in to Firebase on its own, so
 the database sees every request as the user who made it and the security rules
 apply per user.
+
+`npm run dev:firebase` in `frontend/` does all of the above in one go: it starts
+the emulators, creates the logins, runs the migration, and then starts the web
+app and the frontend.
 
 (PowerShell: set `$env:ZORG_FIREBASE_URL`, `$env:FIREBASE_AUTH_EMULATOR_HOST` and,
 for the migration, `$env:ZORG_FIREBASE_ADMIN_TOKEN` first.)
@@ -591,6 +620,8 @@ gradlew, gradle/wrapper/                    Gradle wrapper (pins the Gradle vers
 users.json                                  dummy user accounts (committed)
 database.rules.json                         Firebase security rules (generated, committed)
 firebase.json                               emulator ports and rules file
+frontend/                                   React + Vite web frontend (see frontend/README.md)
+scripts/dev.sh                              starts the web app and the frontend together (npm run dev)
 scripts/create-emulator-accounts.sh         creates a login per account in the Auth emulator
 scripts/create-firebase-accounts.sh         creates a login per account in the real project
 scripts/smoke-test.sh                       end-to-end test of the console app

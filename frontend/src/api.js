@@ -16,3 +16,5 @@ async function request(path, { method = 'GET', body } = {}) {
 
 export const login = (userId) => request('/auth/login', { method: 'POST', body: { userId } })
 export const getPatients = () => request('/patients')
+export const getAccounts = () => request('/auth/accounts')
+export const getUsers = () => request('/users')
