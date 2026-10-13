@@ -1,18 +1,21 @@
 # zorg-app — Patient Management System
 
-A small Java console application for recording patients and their care team. You
-log in as a care provider, then use a menu to view, add and edit the patients
-whose care team you are on. Your profession decides which of these you may do
-and which fields you may see and change. Data is stored in local JSON files by
-default, or in a Firebase Realtime Database with sign-in and server-side
-security rules (see [Running against Firebase](#running-against-firebase)).
+A small Java application for recording patients and their care team. You log in
+as a care provider, then view, add and edit the patients whose care team you are
+on. Your profession decides which of these you may do and which fields you may
+see and change. There are two front ends on the same business rules: a console
+app, and a Spring Boot REST API for a web frontend (see [Web app](#web-app)).
+Data is stored in local JSON files by default, or in a Firebase Realtime
+Database with sign-in and server-side security rules (see
+[Running against Firebase](#running-against-firebase)).
 
 ## Requirements
 
 - **JDK 17 or newer** (the code uses `record`, added in 16); developed and
   tested against Temurin 25
-- **Gson 2.14.0** and **JUnit 5** — declared in
-  [build.gradle.kts](build.gradle.kts) and downloaded from Maven Central
+- **Spring Boot 4.1.1**, **Gson 2.14.0** and **JUnit** — declared in
+  [build.gradle.kts](build.gradle.kts) and downloaded from Maven Central. The
+  Spring Boot BOM picks the versions of Spring, Jackson, Tomcat and JUnit
 
 The project builds with Gradle. You don't need to install it: the Gradle wrapper
 (`./gradlew`) downloads the right version on first use. It runs on whatever JDK is
@@ -36,6 +39,62 @@ In VS Code, the Java extension imports the Gradle project automatically, so
 opening [src/main/java/patients/App.java](src/main/java/patients/App.java) and
 pressing **Run** also works.
 
+### Web app
+
+The web backend is a Spring Boot app ([WebApp.java](src/main/java/patients/web/WebApp.java))
+that serves a JSON API under `/api` on port 8080. It uses the same services,
+permissions and storage as the console app.
+
+```bash
+# development: start the API from the project root (patients.json is read from there)
+./gradlew bootRun
+
+# build one executable jar and run it
+./gradlew bootJar
+java -jar build/libs/zorg-app.jar
+```
+
+`./gradlew run` still starts the console app; `bootRun` and `bootJar` start the
+web app. The Firebase variables below work the same way for both. In JSON mode
+you log in by choosing an account, without a password, so the server only
+listens on `127.0.0.1`. Set `ZORG_BIND_ADDRESS` to listen elsewhere, and
+`--zorg.data-dir=<dir>` (or the environment variable `ZORG_DATADIR`) to read `patients.json` and
+`users.json` from another directory. Any Spring property can be passed the same
+way, e.g. `--server.port=9090`.
+
+Login keeps a server-side session (the `JSESSIONID` cookie, `SameSite=Strict`).
+Every request that changes data (`POST`, `PATCH`) must send the header
+`X-Zorg-Client: web`; together with the cookie setting this protects against
+cross-site request forgery. Try it with `curl`:
+
+```bash
+curl -c jar -H 'X-Zorg-Client: web' -H 'Content-Type: application/json' \
+    -d '{"userId": "jansen"}' localhost:8080/api/auth/login
+curl -b jar localhost:8080/api/patients
+```
+
+| Method | Path | Needs | Body → response |
+| --- | --- | --- | --- |
+| GET | `/api/config` | — | `{mode: "json" or "firebase", professions, fields, actions}`, each a list of `{id, label}` |
+| GET | `/api/auth/accounts` | — | accounts to choose from in JSON mode, `[{id, name, profession}]` (empty in Firebase mode) |
+| POST | `/api/auth/login` | header | `{userId}` (JSON mode) or `{email, password}` (Firebase) → same as `/api/me` |
+| POST | `/api/auth/logout` | header | 204 |
+| GET | `/api/me` | session | `{user, actions, viewableFields, editableFields}`; fields are keys such as `firstName` |
+| GET | `/api/users` | session | all accounts, for choosing a care team |
+| GET | `/api/patients` | session | your patients, sorted by name, with only the fields you may see |
+| GET | `/api/patients/{id}` | session | one patient, or 404 if it doesn't exist or you aren't on its team |
+| POST | `/api/patients` | session, header | `{firstName, lastName, birthDate: "1995-06-15", weight, height, address, careTeam: [userIds], medications: [{name, dosage, frequency}]}` → 201 |
+| PATCH | `/api/patients/{id}` | session, header | only the fields you change, e.g. `{"address": "Oak Lane 1"}`; `medications` replaces the whole list |
+
+A patient's `careTeam` comes back as `[{id, name, profession}]`. Errors are
+[problem details](https://www.rfc-editor.org/rfc/rfc9457) such as
+`{"status": 403, "title": "Forbidden", "detail": "Dentist is not allowed to Add patient"}`:
+401 not signed in or wrong credentials, 403 not allowed, 404 not found, 400
+invalid input, 502 the storage failed. Show `detail` to the user.
+
+For a frontend on the Vite dev server, proxy `/api` to `http://localhost:8080`
+so the browser sees one origin and sends the session cookie.
+
 ### Running against Firebase
 
 By default the app uses the local JSON files. Set `ZORG_FIREBASE_URL` to use a
@@ -45,9 +104,9 @@ decide what you may read and write.
 
 | Variable | Used by | Meaning |
 | --- | --- | --- |
-| `ZORG_FIREBASE_URL` | app, migration | database URL, e.g. `http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb` for the emulator |
-| `FIREBASE_AUTH_EMULATOR_HOST` | app | Auth emulator host, e.g. `127.0.0.1:9099`; when set, sign-in goes to the emulator |
-| `ZORG_FIREBASE_API_KEY` | app | the project's Web API key; only needed for a real project |
+| `ZORG_FIREBASE_URL` | app, web app, migration | database URL, e.g. `http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb` for the emulator |
+| `FIREBASE_AUTH_EMULATOR_HOST` | app, web app | Auth emulator host, e.g. `127.0.0.1:9099`; when set, sign-in goes to the emulator |
+| `ZORG_FIREBASE_API_KEY` | app, web app | the project's Web API key; only needed for a real project |
 | `ZORG_FIREBASE_ADMIN_TOKEN` | migration | sent as `Authorization: Bearer ...`, which bypasses the rules; the emulator accepts `owner` |
 
 For development, use the **local emulators** (needs Node.js; the JDK you already
@@ -77,6 +136,12 @@ Each login's uid is the account's key in `users.json`, its email is
 ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
     ./gradlew run -q --console=plain
 ```
+
+Use `bootRun` instead of `run` for the web app. It refuses to start when
+`ZORG_FIREBASE_URL` is set but neither `FIREBASE_AUTH_EMULATOR_HOST` nor
+`ZORG_FIREBASE_API_KEY` is. Each web session signs in to Firebase on its own, so
+the database sees every request as the user who made it and the security rules
+apply per user.
 
 (PowerShell: set `$env:ZORG_FIREBASE_URL`, `$env:FIREBASE_AUTH_EMULATOR_HOST` and,
 for the migration, `$env:ZORG_FIREBASE_ADMIN_TOKEN` first.)
@@ -162,7 +227,10 @@ again (step 1).
 ## Tests
 
 Unit tests live under [src/test/java/](src/test/java), mirroring the
-`src/main/java` package layout, and use JUnit 5.
+`src/main/java` package layout, and use JUnit. The web API is tested with
+Spring's MockMvc under [src/test/java/patients/web/](src/test/java/patients/web):
+`@WebMvcTest` tests run the controllers against in-memory repositories, and
+`WebAppIntegrationTest` starts the whole app on a temporary JSON data directory.
 
 ```bash
 ./gradlew test
@@ -187,6 +255,12 @@ accounts first, and refuses any URL that isn't on localhost:
 ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" ./scripts/smoke-test.sh
 ```
 
+[scripts/web-smoke-test.sh](scripts/web-smoke-test.sh) does the same for the web
+API: it starts the real server on a free port and drives the same story with
+`curl` (sign in, add, edit, view per profession, sign out), checking the HTTP
+statuses, the JSON and the stored data. It takes `ZORG_FIREBASE_URL` the same
+way.
+
 The Firebase classes also have unit tests that run against small fake servers,
 so `./gradlew test` needs neither the emulators nor a network.
 
@@ -199,7 +273,7 @@ ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" FIREBASE
     ./gradlew emulatorTest
 ```
 
-Both run automatically on every pull request (and on pushes to `main`) via
+The unit tests and both smoke tests run automatically on every pull request (and on pushes to `main`) via
 [.github/workflows/pr-checks.yml](.github/workflows/pr-checks.yml); the unit
 tests run on JDK 17 and 25.
 
@@ -249,16 +323,16 @@ What happens, in order:
    in with email and password instead (three attempts), and your login's uid
    picks the account. Your account's profession decides which menu options and
    fields you get.
-2. **Your patients are loaded**, from `patients.json` or from Firebase: only the
-   patients whose care team you are on. If `patients.json` is missing the app
-   starts with an empty list; if it exists but cannot be read (or is in the old
-   format, see [Data files](#data-files)), a warning is printed and the app
-   continues with an empty list.
-3. **Main menu.** The menu lists only the actions your profession is allowed to
+2. **Main menu.** The menu lists only the actions your profession is allowed to
    perform, numbered from 1, plus `0. Quit`. After each action you return to the
    menu, so you can view, add and edit as often as you like in one session.
-   Every patient you add or edit is **saved straight away**.
-4. **Quit (`0`).** Ends the session. There is nothing left to save.
+   Every patient you add or edit is **saved straight away**, and viewing or
+   editing always reads your patients fresh from `patients.json` or Firebase:
+   only the patients whose care team you are on. A missing `patients.json`
+   means no patients; if it can't be read (or is in the old format, see
+   [Data files](#data-files)), the action prints `Error: ...` and you are back
+   at the menu.
+3. **Quit (`0`).** Ends the session. There is nothing left to save.
 
 ### Care teams
 
@@ -387,10 +461,11 @@ Input handling details:
 - The date of birth must be a real date in `dd-mm-yyyy` form (e.g. `15-06-1995`)
   and not in the future. Weight and height accept decimals with either a comma
   or a dot (`70,5` and `70.5` are both fine). Invalid input is re-prompted.
-- All text input is trimmed. First and last name must not be empty, and weight
-  and height must be greater than 0. A patient (or an edit) that breaks one of
-  these rules is refused with a message and nothing is saved. The address may be
-  left empty.
+- All text input is trimmed. First and last name must not be empty, the date of
+  birth is required and not in the future, weight and height must be greater
+  than 0, and every medication needs a name. `PatientService` enforces these for
+  both the console and the web API: a patient (or an edit) that breaks one is
+  refused with a message and nothing is saved. The address may be left empty.
 - `Patient` can compute age in completed years
   ([Patient.age()](src/main/java/patients/model/Patient.java#L133-L139)) and BMI,
   `weight / (height * height)` ([Patient.bmi()](src/main/java/patients/model/Patient.java#L129-L131)).
@@ -478,7 +553,8 @@ file to start empty, or rewrite it by hand into the shape above. For each patien
 
 ```text
 src/main/java/patients/
-├── App.java                                entry point; wires the layers together
+├── App.java                                console entry point; wires the layers together
+├── Backend.java                            picks JSON or Firebase from the environment, builds the repositories
 ├── MigrateToFirebase.java                  copies the JSON files into Firebase (./gradlew migrateToFirebase)
 ├── FirebaseRules.java                      generates database.rules.json (./gradlew generateFirebaseRules)
 ├── auth/Authenticator.java                 sign-in interface used by the UI
@@ -498,18 +574,27 @@ src/main/java/patients/
 ├── repository/FirebaseClient.java          Realtime Database REST client (java.net.http)
 ├── repository/FirebasePatientRepository.java  patients + /userPatients index in Firebase
 ├── repository/FirebaseUserRepository.java  reads /users from Firebase
-├── service/PatientService.java             cached list, login, permission and care team checks, validation
-├── service/UserService.java                cached user list, lookups by id and profession
+├── service/PatientService.java             permission and care team checks, validation (stateless, user per call)
+├── service/UserService.java                sorted user list, lookups by id and profession
 ├── service/ProfessionPermissions.java      which profession may perform which action
-└── ui/ConsoleUI.java                       login, menu, prompts, parsing, output formatting
-src/test/java/patients/                     JUnit 5 tests, mirroring src/main/java
-build.gradle.kts                            Gradle build: dependencies, main class, test setup
+├── ui/ConsoleUI.java                       login, menu, prompts, parsing, output formatting
+├── web/WebApp.java                         Spring Boot entry point (./gradlew bootRun)
+├── web/BackendConfig.java                  Spring beans: Backend and the SignIn for the chosen storage
+├── web/WebMvcSetup.java                    registers the client-header check and the Workspace parameter
+├── web/ApiExceptionHandler.java            maps exceptions to HTTP statuses (problem details)
+├── web/session/                            sign-in (JSON or Firebase), the per-session Workspace, CSRF header check
+└── web/api/                                REST controllers and their request/response records
+src/main/resources/application.properties   Spring Boot settings (bind address, session cookie, data dir)
+src/test/java/patients/                     JUnit tests, mirroring src/main/java
+build.gradle.kts                            Gradle build: dependencies, main classes, test setup
 gradlew, gradle/wrapper/                    Gradle wrapper (pins the Gradle version)
 users.json                                  dummy user accounts (committed)
 database.rules.json                         Firebase security rules (generated, committed)
 firebase.json                               emulator ports and rules file
 scripts/create-emulator-accounts.sh         creates a login per account in the Auth emulator
 scripts/create-firebase-accounts.sh         creates a login per account in the real project
+scripts/smoke-test.sh                       end-to-end test of the console app
+scripts/web-smoke-test.sh                   end-to-end test of the web API
 .firebaserc                                 links the Firebase CLI to project zorg-app-74d7b
 patients.json                               local data file (git-ignored)
 ```
@@ -523,20 +608,27 @@ Known gaps, so nobody goes looking for features that are not there yet:
 
 - **No search or delete.** Patients can be viewed, added and edited.
 - **No authentication on JSON.** With the local files anyone can pick any
-  account; only the Firebase mode has passwords and server-side rules.
-- **Passwords are echoed.** The sign-in prompt reads the password like any other
-  line, so it is visible while you type it.
+  account, in the console and in the web app; only the Firebase mode has
+  passwords and server-side rules. That is why the web app only listens on
+  `127.0.0.1` by default.
+- **Passwords are echoed in the console.** The sign-in prompt reads the password
+  like any other line, so it is visible while you type it.
+- **Web sessions live in memory.** Restarting the web app signs everyone out.
+- **Last write wins.** Two people editing the same field at the same time
+  don't see each other's change; the later save wins.
 - **Care teams can't be changed in the app.** They are set when a patient is
   added; after that, only by editing `patients.json`.
 - **Pharmacists can only view.** They can't add or edit patients, not even
   medication.
 - **No duplicate detection** — three identical "John Doe" records are three
   separate patients, each with its own id.
-- **One user at a time on JSON.** Each save rewrites the whole file, so two
-  sessions running at once can still overwrite each other's changes. On Firebase
-  each save only writes that one patient.
+- **One process at a time on JSON.** Each save rewrites the whole file. Within
+  the web app saves are serialized, but the console app and the web app (or two
+  console sessions) running at once can overwrite each other's changes. On
+  Firebase each save only writes that one patient.
 - **The migration only goes one way.** `./gradlew migrateToFirebase` copies the
   JSON files into Firebase, but nothing copies Firebase data back. After the
   migration, data entered in one backend isn't visible in the other.
-- **The console UI has no tests.** The model, repository, service and permissions
-  are covered under [src/test/java/](src/test/java).
+- **The console UI has no unit tests.** The model, repository, service,
+  permissions and web API are covered under [src/test/java/](src/test/java), and
+  the console by `scripts/smoke-test.sh`.

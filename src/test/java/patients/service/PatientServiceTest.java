@@ -8,8 +8,12 @@ import patients.model.Patient;
 import patients.model.PatientField;
 import patients.model.Profession;
 import patients.model.User;
+import patients.testing.InMemoryPatientRepository;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,10 +26,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PatientServiceTest {
 
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-01-01T12:00:00Z"), ZoneOffset.UTC);
+    private static final User OUTSIDER = new User("outsider", "Dr. Outsider", Profession.DOCTOR);
+    private static final User DOCTOR = user(Profession.DOCTOR);
+
     private InMemoryPatientRepository repository;
     private PatientService service;
-
-    private static final User OUTSIDER = new User("outsider", "Dr. Outsider", Profession.DOCTOR);
 
     private static User user(Profession profession) {
         return new User(profession.name().toLowerCase(), profession.label, profession);
@@ -63,53 +69,47 @@ class PatientServiceTest {
 
     private void startWith(Patient... initial) {
         repository = new InMemoryPatientRepository(List.of(initial));
-        service = new PatientService(repository);
-        service.login(user(Profession.DOCTOR));
-        service.load();
+        service = new PatientService(repository, CLOCK);
     }
 
     @BeforeEach
     void setUp() {
-        repository = new InMemoryPatientRepository();
-        service = new PatientService(repository);
-        service.login(user(Profession.DOCTOR));
+        startWith();
     }
 
     @Test
-    void getAllIsEmptyBeforeLoading() {
-        assertTrue(service.getAll().isEmpty());
+    void getAllIsEmptyWithoutPatients() {
+        assertTrue(service.getAll(DOCTOR).isEmpty());
     }
 
     @Test
-    void loadPopulatesPatientsFromRepository() {
+    void getAllReadsPatientsFromRepository() {
         startWith(patient("John"), patient("Jane"));
 
-        assertEquals(2, service.getAll().size());
+        assertEquals(2, service.getAll(DOCTOR).size());
     }
 
     @Test
-    void loadSortsByLastNameThenFirstName() {
+    void getAllSortsByLastNameThenFirstName() {
         Patient zed = patient("zed", "John").withLastName("Zed");
         startWith(zed, patient("John"), patient("Jane"));
 
-        assertEquals(List.of(patient("Jane"), patient("John"), zed), service.getAll());
+        assertEquals(List.of(patient("Jane"), patient("John"), zed), service.getAll(DOCTOR));
     }
 
     @Test
-    void loadReplacesPreviouslyLoadedPatients() {
+    void getAllSeesChangesSavedThroughTheRepository() {
         startWith(patient("John"));
 
         repository.save(patient("John").withFirstName("Johnny"));
-        service.load();
 
-        assertEquals(List.of(patient("John").withFirstName("Johnny")), service.getAll());
+        assertEquals(List.of(patient("John").withFirstName("Johnny")), service.getAll(DOCTOR));
     }
 
     @Test
     void addAssignsAnIdAndSavesImmediately() {
-        service.add(patient(null, "John"));
+        Patient added = service.add(DOCTOR, patient(null, "John"));
 
-        Patient added = service.getAll().get(0);
         assertNotNull(added.id());
         assertEquals(1, repository.saveCalls);
         assertEquals(List.of(added), repository.getStored());
@@ -117,71 +117,85 @@ class PatientServiceTest {
 
     @Test
     void addKeepsAnExistingId() {
-        service.add(patient("id-1", "John"));
+        service.add(DOCTOR, patient("id-1", "John"));
 
         assertEquals("id-1", repository.getStored().get(0).id());
     }
 
     @Test
-    void addAppendsToInMemoryList() {
-        service.add(patient("John"));
-        service.add(patient("Jane"));
+    void addedPatientsShowUpInGetAll() {
+        service.add(DOCTOR, patient("John"));
+        service.add(DOCTOR, patient("Jane"));
 
-        assertEquals(List.of(patient("John"), patient("Jane")), service.getAll());
+        assertEquals(List.of(patient("Jane"), patient("John")), service.getAll(DOCTOR));
     }
 
     @Test
-    void getAllReturnsAnImmutableSnapshot() {
-        service.add(patient("John"));
-        List<Patient> snapshot = service.getAll();
+    void getAllReturnsAnImmutableList() {
+        service.add(DOCTOR, patient("John"));
+        List<Patient> patients = service.getAll(DOCTOR);
 
-        assertThrows(UnsupportedOperationException.class, () -> snapshot.add(patient("Jane")));
+        assertThrows(UnsupportedOperationException.class, () -> patients.add(patient("Jane")));
     }
 
     @Test
-    void addAndGetAllRequireALoggedInUser() {
-        service = new PatientService(repository);
+    void everyMethodRequiresALoggedInUser() {
+        startWith(patient("John"));
 
-        assertThrows(IllegalStateException.class, () -> service.add(patient("John")));
-        assertThrows(IllegalStateException.class, () -> service.getAll());
+        assertThrows(IllegalStateException.class, () -> service.add(null, patient("Jane")));
+        assertThrows(IllegalStateException.class, () -> service.getAll(null));
+        assertThrows(IllegalStateException.class, () -> service.get(null, "john"));
+        assertThrows(IllegalStateException.class, () -> service.update(null, patient("John")));
     }
 
     @Test
     void addIsRejectedForProfessionsOtherThanDoctor() {
         for (Profession profession : List.of(Profession.PHARMACIST, Profession.PHYSIOTHERAPIST, Profession.DENTIST)) {
-            service.login(user(profession));
-
-            assertThrows(SecurityException.class, () -> service.add(patient("John")));
+            assertThrows(SecurityException.class, () -> service.add(user(profession), patient("John")));
         }
         assertEquals(0, repository.saveCalls);
     }
 
     @Test
     void addRejectsInvalidPatients() {
-        assertThrows(IllegalArgumentException.class, () -> service.add(patient("John").withFirstName(" ")));
-        assertThrows(IllegalArgumentException.class, () -> service.add(patient("John").withLastName("")));
-        assertThrows(IllegalArgumentException.class, () -> service.add(patient("John").withHeight(0)));
-        assertThrows(IllegalArgumentException.class, () -> service.add(patient("John").withWeight(-1)));
+        List<Patient> invalid = List.of(
+                patient("John").withFirstName(" "),
+                patient("John").withLastName(""),
+                patient("John").withHeight(0),
+                patient("John").withWeight(-1),
+                patient("John").withBirthDate(null),
+                patient("John").withBirthDate(LocalDate.of(2026, 1, 2)),
+                patient("John").withMedications(List.of(new Medication(" ", "500 mg", "3x daily"))),
+                patient("John").withMedications(List.of(new Medication(null, "500 mg", "3x daily"))));
+
+        for (Patient patient : invalid) {
+            assertThrows(IllegalArgumentException.class, () -> service.add(DOCTOR, patient), patient.toString());
+        }
         assertEquals(0, repository.saveCalls);
     }
 
     @Test
-    void updateSavesAndReplacesTheCachedPatient() {
+    void aBirthDateOfTodayIsAllowed() {
+        assertDoesNotThrow(() -> service.add(DOCTOR, patient("John").withBirthDate(LocalDate.of(2026, 1, 1))));
+    }
+
+    @Test
+    void updateSavesThePatient() {
         startWith(patient("John"), patient("Jane"));
         Patient updated = patient("John").withAddress("Oak Lane 1");
 
-        service.update(updated);
+        assertEquals(updated, service.update(DOCTOR, updated));
 
         assertEquals(updated, repository.findById("john").orElseThrow());
-        assertTrue(service.getAll().contains(updated));
-        assertEquals(2, service.getAll().size());
+        assertTrue(service.getAll(DOCTOR).contains(updated));
+        assertEquals(2, service.getAll(DOCTOR).size());
     }
 
     @Test
     void updateOfUnknownPatientIsRejected() {
         startWith(patient("John"));
 
-        assertThrows(IllegalArgumentException.class, () -> service.update(patient("Jane")));
+        assertThrows(PatientNotFoundException.class, () -> service.update(DOCTOR, patient("Jane")));
     }
 
     @Test
@@ -192,14 +206,14 @@ class PatientServiceTest {
             }
             for (PatientField field : PatientField.values()) {
                 startWith(patient("John"));
-                service.login(user(profession));
                 Patient updated = changeField(patient("John"), field);
 
                 if (FieldPermissions.canEdit(profession, field)) {
-                    assertDoesNotThrow(() -> service.update(updated), profession + " " + field);
+                    assertDoesNotThrow(() -> service.update(user(profession), updated), profession + " " + field);
                     assertEquals(updated, repository.findById("john").orElseThrow());
                 } else {
-                    assertThrows(SecurityException.class, () -> service.update(updated), profession + " " + field);
+                    assertThrows(SecurityException.class, () -> service.update(user(profession), updated),
+                            profession + " " + field);
                     assertEquals(patient("John"), repository.findById("john").orElseThrow());
                 }
             }
@@ -209,10 +223,9 @@ class PatientServiceTest {
     @Test
     void pharmacistCanNotEdit() {
         startWith(patient("John"));
-        service.login(user(Profession.PHARMACIST));
 
         assertThrows(SecurityException.class,
-                () -> service.update(patient("John").withAddress("Oak Lane 1")));
+                () -> service.update(user(Profession.PHARMACIST), patient("John").withAddress("Oak Lane 1")));
     }
 
     @Test
@@ -221,20 +234,19 @@ class PatientServiceTest {
         Map<String, Boolean> biggerTeam = teamOfEveryProfession();
         biggerTeam.put(OUTSIDER.id(), true);
 
-        assertThrows(SecurityException.class, () -> service.update(patient("John").withCareTeam(biggerTeam)));
+        assertThrows(SecurityException.class,
+                () -> service.update(DOCTOR, patient("John").withCareTeam(biggerTeam)));
         assertEquals(0, repository.saveCalls);
     }
 
     @Test
     void addPutsTheCreatorOnTheCareTeam() {
-        service.login(OUTSIDER);
+        Patient added = service.add(OUTSIDER, patient(null, "John").withCareTeam(Map.of("pharmacist", true)));
 
-        service.add(patient(null, "John").withCareTeam(Map.of("pharmacist", true)));
-
-        Patient added = repository.getStored().get(0);
         assertTrue(added.hasMember(OUTSIDER.id()));
         assertTrue(added.hasMember("pharmacist"));
-        assertEquals(List.of(added), service.getAll());
+        assertEquals(List.of(added), repository.getStored());
+        assertEquals(List.of(added), service.getAll(OUTSIDER));
     }
 
     @Test
@@ -243,38 +255,31 @@ class PatientServiceTest {
         Patient outsidersPatient = patient("Jane").withCareTeam(Map.of(OUTSIDER.id(), true));
         startWith(johnsTeamOnly, outsidersPatient);
 
-        assertEquals(List.of(johnsTeamOnly), service.getAll());
-
-        service.login(OUTSIDER);
-        service.load();
-        assertEquals(List.of(outsidersPatient), service.getAll());
+        assertEquals(List.of(johnsTeamOnly), service.getAll(DOCTOR));
+        assertEquals(List.of(outsidersPatient), service.getAll(OUTSIDER));
     }
 
     @Test
-    void loadOnlyReadsTheLoggedInUsersPatients() {
-        Patient outsidersPatient = patient("Jane").withCareTeam(Map.of(OUTSIDER.id(), true));
-        startWith(patient("John"), outsidersPatient);
-        service.login(OUTSIDER);
+    void getReturnsAPatientOfTheCareTeam() {
+        startWith(patient("John"), patient("Jane"));
 
-        assertEquals(List.of(), service.getAll());
-        service.load();
-        assertEquals(List.of(outsidersPatient), service.getAll());
+        assertEquals(patient("Jane"), service.get(DOCTOR, "jane"));
     }
 
     @Test
-    void loadRequiresALoggedInUser() {
-        service = new PatientService(repository);
+    void getOfANonMembersPatientIsNotFound() {
+        startWith(patient("John"));
 
-        assertThrows(IllegalStateException.class, () -> service.load());
+        assertThrows(PatientNotFoundException.class, () -> service.get(OUTSIDER, "john"));
+        assertThrows(PatientNotFoundException.class, () -> service.get(DOCTOR, "nobody"));
     }
 
     @Test
     void nonMembersCanNotEditThePatient() {
         startWith(patient("John"));
-        service.login(OUTSIDER);
 
         assertThrows(SecurityException.class,
-                () -> service.update(patient("John").withAddress("Oak Lane 1")));
+                () -> service.update(OUTSIDER, patient("John").withAddress("Oak Lane 1")));
         assertEquals(0, repository.saveCalls);
     }
 
@@ -282,15 +287,17 @@ class PatientServiceTest {
     void falseInTheCareTeamIsNotMembership() {
         startWith(patient("John").withCareTeam(Map.of("doctor", false)));
 
-        assertTrue(service.getAll().isEmpty());
+        assertTrue(service.getAll(DOCTOR).isEmpty());
     }
 
     @Test
     void updateRejectsInvalidValues() {
         startWith(patient("John"));
 
-        assertThrows(IllegalArgumentException.class, () -> service.update(patient("John").withHeight(0)));
-        assertThrows(IllegalArgumentException.class, () -> service.update(patient("John").withFirstName("")));
+        assertThrows(IllegalArgumentException.class, () -> service.update(DOCTOR, patient("John").withHeight(0)));
+        assertThrows(IllegalArgumentException.class, () -> service.update(DOCTOR, patient("John").withFirstName("")));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.update(DOCTOR, patient("John").withBirthDate(LocalDate.of(2027, 1, 1))));
         assertEquals(0, repository.saveCalls);
     }
 
@@ -299,9 +306,9 @@ class PatientServiceTest {
         startWith(patient("John"));
         Patient updated = patient("John").withMedications(List.of(new Medication("Paracetamol", "500 mg", "3x daily")));
 
-        service.update(updated);
+        service.update(DOCTOR, updated);
 
-        assertEquals(List.of(updated), service.getAll());
+        assertEquals(List.of(updated), service.getAll(DOCTOR));
     }
 
     @Test
@@ -310,21 +317,17 @@ class PatientServiceTest {
         Patient updated = patient("John").withMedications(List.of(new Medication("Paracetamol", "500 mg", "3x daily")));
 
         for (Profession profession : List.of(Profession.PHARMACIST, Profession.PHYSIOTHERAPIST, Profession.DENTIST)) {
-            service.login(user(profession));
-
-            assertThrows(SecurityException.class, () -> service.update(updated));
+            assertThrows(SecurityException.class, () -> service.update(user(profession), updated));
         }
-        assertEquals(List.of(patient("John")), service.getAll());
+        assertEquals(List.of(patient("John")), service.getAll(DOCTOR));
     }
 
     @Test
     void getAllIsAllowedForEveryProfession() {
-        service.add(patient("John"));
+        service.add(DOCTOR, patient("John"));
 
         for (Profession profession : Profession.values()) {
-            service.login(user(profession));
-
-            assertEquals(List.of(patient("John")), service.getAll());
+            assertEquals(List.of(patient("John")), service.getAll(user(profession)));
         }
     }
 }

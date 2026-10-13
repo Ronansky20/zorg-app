@@ -36,6 +36,9 @@ public class ConsoleUI {
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd-MM-uuuu")
             .withResolverStyle(ResolverStyle.STRICT);
 
+    private User user;
+    private List<User> users = List.of();
+
     public ConsoleUI(PatientService service, UserService userService) {
         this(service, userService, null);
     }
@@ -47,14 +50,11 @@ public class ConsoleUI {
     }
 
     public void run() {
-        User user = authenticator == null ? chooseAccount() : signIn();
+        user = authenticator == null ? chooseAccount() : signIn();
         if (user == null) {
             return;
         }
-        service.login(user);
         System.out.println("Welcome " + formatUser(user));
-
-        loadPatients();
 
         System.out.println("Welcome to the patient management system!");
 
@@ -91,7 +91,7 @@ public class ConsoleUI {
                         printPatients(profession);
                         break;
                     case ADD_PATIENT:
-                        service.add(readPatient());
+                        service.add(user, readPatient());
                         break;
                     case EDIT_PATIENT:
                         editPatient(profession);
@@ -107,7 +107,7 @@ public class ConsoleUI {
 
     private User chooseAccount() {
         loadUsers();
-        if (userService.getAll().isEmpty()) {
+        if (users.isEmpty()) {
             System.out.println("No user accounts found, add them to users.json");
             return null;
         }
@@ -136,15 +136,18 @@ public class ConsoleUI {
         }
 
         loadUsers();
-        Optional<User> user = userService.findById(userId);
-        if (user.isEmpty()) {
+        Optional<User> account = findUser(userId);
+        if (account.isEmpty()) {
             System.out.println("Your login has no account in the database, ask an administrator to add it");
         }
-        return user.orElse(null);
+        return account.orElse(null);
+    }
+
+    private Optional<User> findUser(String userId) {
+        return users.stream().filter(u -> u.id().equals(userId)).findFirst();
     }
 
     private User askUser() {
-        List<User> users = userService.getAll();
         for (int i = 0; i < users.size(); i++) {
             System.out.println((i + 1) + ". " + formatUser(users.get(i)));
         }
@@ -160,17 +163,9 @@ public class ConsoleUI {
 
     private void loadUsers() {
         try {
-            userService.load();
+            users = userService.getAll();
         } catch (UncheckedIOException e) {
             System.out.println("Error: " + e.getMessage());
-        }
-    }
-
-    private void loadPatients() {
-        try {
-            service.load();
-        } catch (UncheckedIOException e) {
-            System.out.println("Warning: " + e.getMessage() + " - starting with an empty list.");
         }
     }
 
@@ -192,7 +187,8 @@ public class ConsoleUI {
     private Map<String, Boolean> readCareTeam() {
         Map<String, Boolean> careTeam = new LinkedHashMap<>();
         for (Profession profession : Profession.values()) {
-            User member = chooseUser(userService.getByProfession(profession),
+            List<User> candidates = users.stream().filter(u -> u.profession() == profession).toList();
+            User member = chooseUser(candidates,
                     "Choose the patient's " + profession.label.toLowerCase() + " (0 = none)");
             if (member != null) {
                 careTeam.put(member.id(), true);
@@ -242,7 +238,7 @@ public class ConsoleUI {
 
     private void printPatients(Profession profession) {
         Set<PatientField> viewableFields = FieldPermissions.getViewableFields(profession);
-        for (Patient p : service.getAll()) {
+        for (Patient p : service.getAll(user)) {
             for (PatientField field : viewableFields) {
                 System.out.println(field.label + ": " + fieldValue(p, field));
             }
@@ -253,13 +249,13 @@ public class ConsoleUI {
 
     private String formatCareTeam(Patient patient) {
         List<String> members = new ArrayList<>();
-        for (User user : userService.getAll()) {
-            if (patient.hasMember(user.id())) {
-                members.add(formatUser(user));
+        for (User member : users) {
+            if (patient.hasMember(member.id())) {
+                members.add(formatUser(member));
             }
         }
         for (String userId : patient.careTeam().keySet()) {
-            if (patient.hasMember(userId) && userService.findById(userId).isEmpty()) {
+            if (patient.hasMember(userId) && findUser(userId).isEmpty()) {
                 members.add(userId);
             }
         }
@@ -313,13 +309,13 @@ public class ConsoleUI {
         if (updatedPatient == null) {
             return;
         }
-        service.update(updatedPatient);
+        service.update(user, updatedPatient);
 
         System.out.println("Patient Updated");
     }
 
     private Patient choosePatient() {
-        List<Patient> possiblePatients = service.getAll(); 
+        List<Patient> possiblePatients = service.getAll(user);
         if (possiblePatients.isEmpty()) {
             System.out.println("No patients found");
             return null;

@@ -20,19 +20,16 @@ import java.util.function.Predicate;
 
 public class FirebaseRules {
 
-    record FieldRule(String key, String validate) {}
-
-    static final Map<PatientField, FieldRule> FIELDS = new EnumMap<>(PatientField.class);
+    static final Map<PatientField, String> VALIDATIONS = new EnumMap<>(PatientField.class);
 
     static {
-        FIELDS.put(PatientField.FIRST_NAME, new FieldRule("firstName", "newData.isString() && newData.val().length > 0"));
-        FIELDS.put(PatientField.LAST_NAME, new FieldRule("lastName", "newData.isString() && newData.val().length > 0"));
-        FIELDS.put(PatientField.DATE_OF_BIRTH, new FieldRule("birthDate",
-                "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)"));
-        FIELDS.put(PatientField.WEIGHT, new FieldRule("weight", "newData.isNumber() && newData.val() > 0"));
-        FIELDS.put(PatientField.HEIGHT, new FieldRule("height", "newData.isNumber() && newData.val() > 0"));
-        FIELDS.put(PatientField.ADDRESS, new FieldRule("address", "newData.isString()"));
-        FIELDS.put(PatientField.MEDICATION, new FieldRule("medications", null));
+        VALIDATIONS.put(PatientField.FIRST_NAME, "newData.isString() && newData.val().length > 0");
+        VALIDATIONS.put(PatientField.LAST_NAME, "newData.isString() && newData.val().length > 0");
+        VALIDATIONS.put(PatientField.DATE_OF_BIRTH,
+                "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)");
+        VALIDATIONS.put(PatientField.WEIGHT, "newData.isNumber() && newData.val() > 0");
+        VALIDATIONS.put(PatientField.HEIGHT, "newData.isNumber() && newData.val() > 0");
+        VALIDATIONS.put(PatientField.ADDRESS, "newData.isString()");
     }
 
     static final Path FILE = Paths.get("database.rules.json");
@@ -70,17 +67,16 @@ public class FirebaseRules {
                 + " && " + professionIn(p -> ProfessionPermissions.isAllowed(p, Action.ADD_PATIENT)));
         patient.addProperty(".validate", "newData.hasChildren(['firstName', 'lastName', 'weight', 'height', 'careTeam'])");
 
-        for (Map.Entry<PatientField, FieldRule> entry : FIELDS.entrySet()) {
-            PatientField field = entry.getKey();
+        for (PatientField field : PatientField.values()) {
             JsonObject rule = new JsonObject();
             rule.addProperty(".write", "auth != null"
                     + " && data.parent().child('careTeam').child(auth.uid).val() === true"
                     + " && " + professionIn(p -> ProfessionPermissions.isAllowed(p, Action.EDIT_PATIENT)
                             && FieldPermissions.canEdit(p, field)));
-            if (entry.getValue().validate() != null) {
-                rule.addProperty(".validate", entry.getValue().validate());
+            if (VALIDATIONS.containsKey(field)) {
+                rule.addProperty(".validate", VALIDATIONS.get(field));
             }
-            patient.add(entry.getValue().key(), rule);
+            patient.add(field.key, rule);
         }
         patient.getAsJsonObject("medications").add("$index", medication());
 
