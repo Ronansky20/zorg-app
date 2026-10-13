@@ -37,8 +37,32 @@ tasks.register<JavaExec>("migrateToFirebase") {
     workingDir = rootDir
 }
 
+tasks.register<JavaExec>("generateFirebaseRules") {
+    group = "application"
+    description = "Writes database.rules.json from ProfessionPermissions and FieldPermissions"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass = "patients.FirebaseRules"
+    workingDir = rootDir
+}
+
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags("emulator")
+    }
+    testLogging {
+        events("passed", "skipped", "failed")
+    }
+}
+
+tasks.register<Test>("emulatorTest") {
+    group = "verification"
+    description = "Runs the tests tagged 'emulator' against the Firebase emulators, see the README"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform {
+        includeTags("emulator")
+    }
+    outputs.upToDateWhen { false }
     testLogging {
         events("passed", "skipped", "failed")
     }
