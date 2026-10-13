@@ -38,46 +38,87 @@ pressing **Run** also works.
 ### Running against Firebase
 
 By default the app uses the local JSON files. Set `ZORG_FIREBASE_URL` to use a
-Firebase Realtime Database instead:
+Firebase Realtime Database instead. You then sign in with an email and password
+(Firebase Auth) instead of picking an account, and the database's security rules
+decide what you may read and write.
 
-| Variable | Meaning |
-| --- | --- |
-| `ZORG_FIREBASE_URL` | database URL, e.g. `http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb` for the emulator |
-| `ZORG_FIREBASE_TOKEN` | optional; sent as `?auth=...` (not needed for the emulator) |
+| Variable | Used by | Meaning |
+| --- | --- | --- |
+| `ZORG_FIREBASE_URL` | app, migration | database URL, e.g. `http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb` for the emulator |
+| `FIREBASE_AUTH_EMULATOR_HOST` | app | Auth emulator host, e.g. `127.0.0.1:9099`; when set, sign-in goes to the emulator |
+| `ZORG_FIREBASE_API_KEY` | app | the project's Web API key; only needed for a real project |
+| `ZORG_FIREBASE_ADMIN_TOKEN` | migration | sent as `Authorization: Bearer ...`, which bypasses the rules; the emulator accepts `owner` |
 
-For development, use the **local emulator** (needs Node.js; the JDK you already
-have runs it). [firebase.json](firebase.json) configures it on port 9000, and a
-`demo-` project id keeps it fully offline:
-
-```bash
-npx -y firebase-tools@15.33.0 emulators:start --only database --project demo-zorg-app
-```
-
-Then, in another terminal:
-
-```bash
-ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" ./gradlew run -q --console=plain
-```
-
-(PowerShell: `$env:ZORG_FIREBASE_URL = "http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb"` first.)
-
-The emulator starts empty and forgets everything when it stops. To load the
-accounts from `users.json` and the patients from `patients.json`, run the
-migration from the project root with the same `ZORG_FIREBASE_URL`:
+For development, use the **local emulators** (needs Node.js; the JDK you already
+have runs them). [firebase.json](firebase.json) configures the database on port
+9000 and Auth on port 9099, and loads [database.rules.json](database.rules.json).
+A `demo-` project id keeps them fully offline:
 
 ```bash
-ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" ./gradlew migrateToFirebase -q --console=plain
+npx -y firebase-tools@15.33.0 emulators:start --only database,auth --project demo-zorg-app
 ```
 
-It writes every user and patient by id, and builds the `/userPatients` index
-along the way, so running it again gives the same data. Records that only
-exist in Firebase are left alone. It prints a warning for any care team member
-who isn't in `users.json`. If `patients.json` is missing, only the users are
-migrated; if it is in the old format (see [Data files](#data-files)), the
-migration stops before writing anything.
+The emulators start empty and forget everything when they stop. In another
+terminal, create a login for every account in `users.json`, then load the
+accounts and patients into the database:
 
-> Don't point the app at a real Firebase project yet: there are no database
-> security rules until Firebase Auth is added, and this is medical data.
+```bash
+./scripts/create-emulator-accounts.sh
+ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" ZORG_FIREBASE_ADMIN_TOKEN=owner \
+    ./gradlew migrateToFirebase -q --console=plain
+```
+
+Each login's uid is the account's key in `users.json`, its email is
+`<key>@zorg.test` (e.g. `jansen@zorg.test`), and the password is
+`zorg-dev-password` (set `ZORG_DEV_PASSWORD` to choose another). Then run the app:
+
+```bash
+ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+    ./gradlew run -q --console=plain
+```
+
+(PowerShell: set `$env:ZORG_FIREBASE_URL`, `$env:FIREBASE_AUTH_EMULATOR_HOST` and,
+for the migration, `$env:ZORG_FIREBASE_ADMIN_TOKEN` first.)
+
+The migration writes every user and patient by id, and builds the
+`/userPatients` index along the way, so running it again gives the same data.
+Records that only exist in Firebase are left alone. It prints a warning for any
+care team member who isn't in `users.json`. If `patients.json` is missing, only
+the users are migrated; if it is in the old format (see [Data files](#data-files)),
+the migration stops before writing anything.
+
+#### Security rules
+
+[database.rules.json](database.rules.json) is generated from
+`ProfessionPermissions` and `FieldPermissions`, so the server enforces the same
+rules as the app. After changing either, regenerate it (a unit test fails until
+you do):
+
+```bash
+./gradlew generateFirebaseRules
+```
+
+In short: you can only read a patient whose care team you are on, and only
+through your own `/userPatients` index; you can only change the fields your
+profession may edit; only professions that may add patients can create one, with
+themselves on the team; the care team can't be changed after creation; `/users`
+is readable when signed in and writable by nobody. Values are validated too (for
+example, weight must be a number above 0).
+
+#### A real Firebase project
+
+This is medical data (GDPR). Keep **only dummy data** in a real project, and:
+
+1. Create the Realtime Database in `europe-west1`, in **locked mode** (never
+   "test mode").
+2. Deploy the rules before adding any data:
+   `npx -y firebase-tools@15.33.0 deploy --only database --project <project-id>`.
+3. Create the Auth accounts with uids equal to the keys in `users.json`, for
+   example with `firebase auth:import` (the console can't choose uids).
+4. Migrate with `ZORG_FIREBASE_ADMIN_TOKEN` set to an OAuth access token of an
+   account with database admin rights.
+5. Run the app with `ZORG_FIREBASE_URL=https://<db>.europe-west1.firebasedatabase.app`
+   and `ZORG_FIREBASE_API_KEY` set; leave `FIREBASE_AUTH_EMULATOR_HOST` unset.
 
 ## Tests
 
@@ -98,16 +139,26 @@ checks the output and the saved `patients.json`:
 ./scripts/smoke-test.sh
 ```
 
-With the emulator running (see [Running against Firebase](#running-against-firebase)),
-the same test runs through Firebase instead. It wipes the emulator's data first,
-and refuses any URL that isn't on localhost:
+With the emulators running (see [Running against Firebase](#running-against-firebase)),
+the same test runs through Firebase instead, signing in with email and password.
+It loads the current `database.rules.json`, wipes the emulator's data and
+accounts first, and refuses any URL that isn't on localhost:
 
 ```bash
 ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" ./scripts/smoke-test.sh
 ```
 
-The Firebase classes also have unit tests that run against a small fake database
-server, so `./gradlew test` needs neither the emulator nor a network.
+The Firebase classes also have unit tests that run against small fake servers,
+so `./gradlew test` needs neither the emulators nor a network.
+
+The security rules are tested against the real emulators, signing in as
+different users and checking what each of them may read and write. These tests
+are tagged `emulator`, so `./gradlew test` skips them; run them with:
+
+```bash
+ZORG_FIREBASE_URL="http://127.0.0.1:9000?ns=demo-zorg-app-default-rtdb" FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+    ./gradlew emulatorTest
+```
 
 Both run automatically on every pull request (and on pushes to `main`) via
 [.github/workflows/pr-checks.yml](.github/workflows/pr-checks.yml); the unit
@@ -155,8 +206,10 @@ What happens, in order:
 
 1. **Choose your account.** The accounts come from [users.json](users.json). Pick
    a number from the list; anything outside the range is rejected and you are
-   asked again. There is no password yet. Your account's profession decides
-   which menu options and fields you get.
+   asked again. With the JSON files there is no password. On Firebase you sign
+   in with email and password instead (three attempts), and your login's uid
+   picks the account. Your account's profession decides which menu options and
+   fields you get.
 2. **Patients are loaded** from `patients.json`. If the file is missing the app
    starts with an empty list; if it exists but cannot be read (or is in the old
    format, see [Data files](#data-files)), a warning is printed and the app
@@ -347,6 +400,10 @@ file to start empty, or rewrite it by hand into the shape above. For each patien
 ```text
 src/main/java/patients/
 ├── App.java                                entry point; wires the layers together
+├── MigrateToFirebase.java                  copies the JSON files into Firebase (./gradlew migrateToFirebase)
+├── FirebaseRules.java                      generates database.rules.json (./gradlew generateFirebaseRules)
+├── auth/Authenticator.java                 sign-in interface used by the UI
+├── auth/FirebaseAuth.java                  email/password sign-in and token refresh (Identity Toolkit REST)
 ├── model/Patient.java                      patient record, including its care team
 ├── model/User.java                         user account: id, name, profession
 ├── model/Medication.java                   one medication: name, dosage, frequency
@@ -370,6 +427,9 @@ src/test/java/patients/                     JUnit 5 tests, mirroring src/main/ja
 build.gradle.kts                            Gradle build: dependencies, main class, test setup
 gradlew, gradle/wrapper/                    Gradle wrapper (pins the Gradle version)
 users.json                                  dummy user accounts (committed)
+database.rules.json                         Firebase security rules (generated, committed)
+firebase.json                               emulator ports and rules file
+scripts/create-emulator-accounts.sh         creates a login per account in the Auth emulator
 patients.json                               local data file (git-ignored)
 ```
 
@@ -381,8 +441,10 @@ Layering and the reasoning behind it are described in
 Known gaps, so nobody goes looking for features that are not there yet:
 
 - **View and add only.** There is no search, edit or delete.
-- **No real authentication.** Anyone can pick any account; there are no
-  passwords. Firebase Auth replaces this later.
+- **No authentication on JSON.** With the local files anyone can pick any
+  account; only the Firebase mode has passwords and server-side rules.
+- **Passwords are echoed.** The sign-in prompt reads the password like any other
+  line, so it is visible while you type it.
 - **Care teams can't be changed in the app.** They are set when a patient is
   added; after that, only by editing `patients.json`.
 - **Pharmacists can't do anything** besides quit. They have no permitted actions

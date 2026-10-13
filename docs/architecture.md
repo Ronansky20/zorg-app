@@ -4,25 +4,31 @@ The app is deliberately split into four layers so that the console, the business
 rules and the storage format can change independently. Everything is wired
 together once, in [App.java](../src/main/java/patients/App.java):
 
-it picks the Firebase repositories when `ZORG_FIREBASE_URL` is set and the JSON
-ones otherwise, then wires them into the services and the UI:
+it picks the Firebase repositories and `FirebaseAuth` when `ZORG_FIREBASE_URL` is
+set and the JSON ones otherwise, then wires them into the services and the UI:
 
 ```java
 PatientService service = new PatientService(repository);
 UserService userService = new UserService(userRepository);
-ConsoleUI ui = new ConsoleUI(service, userService);
+ConsoleUI ui = new ConsoleUI(service, userService, auth);
 ui.run();
 ```
+
+`auth` is `null` in JSON mode, which makes the UI show the account list instead
+of a sign-in prompt.
 
 ```text
 ConsoleUI  ──►  PatientService  ──►  PatientRepository (interface)
  (I/O)         (list + rules)             ├──► JsonPatientRepository (patients.json)
    │                                      └──► FirebasePatientRepository ─┐
    ├──────►  UserService     ──►  UserRepository (interface)              ├─► FirebaseClient (REST)
-   │          (user lookups)              ├──► JsonUserRepository (users.json)
-   │                                      └──► FirebaseUserRepository ────┘
+   │          (user lookups)              ├──► JsonUserRepository (users.json)    ▲ idToken
+   │                                      └──► FirebaseUserRepository ────┘       │
+   ├──────►  Authenticator (interface) ──►  FirebaseAuth (Identity Toolkit REST) ─┘
    │
    └──────►  ProfessionPermissions / FieldPermissions  (profession → actions / fields)
+                       │
+                       └──► FirebaseRules ──► database.rules.json (the same rules, on the server)
 
 Patient, User, Medication, Profession, Action, PatientField  (model types, used everywhere)
 ```
@@ -124,8 +130,11 @@ the format checks above apply to both files.
 the database's REST API with the JDK's `java.net.http.HttpClient`, so there is no
 Firebase SDK dependency. `get`, `put` and `patch` map to `GET`, `PUT` and `PATCH`
 on `<database url>/<path>.json`. Any query in the configured URL (such as the
-emulator's `?ns=...`) is kept, and the auth token is added as `auth=...`. The
-token comes from a `Supplier`, so it can change after login. A missing value
+emulator's `?ns=...`) is kept, and the user's ID token is added as `auth=...`.
+The token comes from a `Supplier` (in the app, `FirebaseAuth::idToken`), so it
+can change after login and after a refresh. `FirebaseClient.admin(url, token)`
+instead sends `Authorization: Bearer <token>`, which bypasses the security
+rules; only the migration and the emulator tests use it. A missing value
 comes back as `JsonNull`. A non-2xx response or a network error becomes an
 `UncheckedIOException` carrying the response body, so the UI reports it like any
 other storage error.
@@ -140,10 +149,15 @@ The tree looks like this:
 
 [FirebasePatientRepository](../src/main/java/patients/repository/FirebasePatientRepository.java):
 
-- `save()` is one multi-path `PATCH` on the root. It writes `/patients/<id>` and
-  an index entry `/userPatients/<member>/<id>` for every care team member. It
-  also deletes (`null`) the entries of members who were removed. A single
-  request means the patient and its index are updated together.
+- `save()` first reads the stored patient, then sends one multi-path `PATCH`
+  on the root. A new patient is written whole to `/patients/<id>`; for an
+  existing one only the fields that changed are written, as
+  `/patients/<id>/<field>`. That is what lets the security rules check each
+  field against your profession: a dentist editing the address never writes
+  `weight`. The same request writes an index entry
+  `/userPatients/<member>/<id>` for every care team member, and deletes
+  (`null`) the entries of members who were removed, so the patient and its
+  index are updated together.
 - `findAllForUser()` reads `/userPatients/<userId>` and then fetches each patient.
   It skips entries whose patient is gone or no longer lists the user. Reading
   the whole of `/patients` is not an option once there are security rules,
@@ -167,6 +181,47 @@ uses. Because every write is by id, running it again gives the same data. Before
 writing anything it collects a warning for each care team member who isn't a
 known user.
 
+#### Firebase Auth
+
+[FirebaseAuth](../src/main/java/patients/auth/FirebaseAuth.java) signs in with
+the Identity Toolkit REST endpoint `accounts:signInWithPassword` and returns the
+login's uid (`localId`), which is also the user's key in `/users`: a login's uid
+*is* the account id that care teams refer to. It keeps the ID token (valid for an
+hour) and the refresh token. `idToken()` refreshes through
+`securetoken.googleapis.com` once the token is within a minute of expiring.
+Wrong credentials become a `SecurityException` ("Wrong email or password");
+anything else becomes an `UncheckedIOException`. `forEmulator(host)` points it at
+the Auth emulator, `forProject(apiKey)` at Google.
+
+The UI only sees the `Authenticator` interface (`signIn(email, password)`
+returns a user id). Because `/users` is only readable when signed in, the UI
+signs in first and loads the accounts afterwards.
+
+#### Security rules
+
+[FirebaseRules](../src/main/java/patients/FirebaseRules.java) generates
+[database.rules.json](../database.rules.json) from `ProfessionPermissions` and
+`FieldPermissions`, so the database enforces the same permissions as
+`PatientService`. Run it with `./gradlew generateFirebaseRules`;
+`FirebaseRulesTest` fails while the committed file is out of date. The rules:
+
+- `/patients/<id>`: readable by care team members (and readable while it
+  doesn't exist, so `save()` can check whether a patient is new). Creating one
+  needs the `ADD_PATIENT` action and yourself on its team. After that, each
+  field has its own `.write` rule: you must be on the team and your profession
+  must have `EDIT_PATIENT` and be allowed to edit that field. The care team has
+  no write rule, so it is fixed once created. Each field is validated (types,
+  names not empty, weight and height above 0, ISO dates), and unknown fields are
+  rejected.
+- `/userPatients/<userId>`: readable only by that user. An entry can only be
+  written by a member of the patient's team, and must match that team.
+- `/users`: readable by anyone signed in, writable by nobody (only the admin
+  token used by the migration).
+
+`FirebaseRulesEmulatorTest` (tag `emulator`, run with `./gradlew emulatorTest`)
+loads the generated rules into the emulator and checks them as real signed-in
+users.
+
 Swapping storage means writing another `PatientRepository` / `UserRepository` (a
 database, a CSV file, an in-memory fake for tests) and choosing it in `App`.
 
@@ -175,9 +230,9 @@ database, a CSV file, an in-memory fake for tests) and choosing it in `App`.
 `PatientService` keeps a cached list of patients for the UI to show, and the
 user currently logged in:
 
-- `login(User)` sets the current user. There is no password check; the user's
-  profession selects which permissions apply and their id selects which
-  patients.
+- `login(User)` sets the current user; checking a password is the UI's job (via
+  `Authenticator`) before it calls `login`. The user's profession selects which
+  permissions apply and their id selects which patients.
 - `load()` clears the cache and refills it with the logged-in user's patients
   (`repository.findAllForUser(...)`), sorted by last name, then first name. The
   sort keeps the numbered lists in the UI stable whatever order the storage
@@ -224,11 +279,13 @@ another session wrote in the meantime.
 
 All console interaction and all parsing. `run()` is the whole session:
 
-1. `loadUsers()` loads the accounts; with none, the app says so and stops.
-2. `askUser()` lists the accounts and re-prompts until a valid number is
-   chosen, then calls `service.login(...)`.
-3. `loadPatients()` loads the file, printing a warning on `UncheckedIOException`.
-4. `mainMenu(profession)` loops over a numbered menu built from
+1. Without an `Authenticator`, `chooseAccount()` loads the accounts (with none,
+   the app says so and stops) and `askUser()` re-prompts until a valid number is
+   chosen. With one, `signIn()` asks for email and password (three attempts),
+   then loads the accounts and looks up the signed-in uid. Either way the user
+   is passed to `service.login(...)`.
+2. `loadPatients()` loads the file, printing a warning on `UncheckedIOException`.
+3. `mainMenu(profession)` loops over a numbered menu built from
    `ProfessionPermissions.getAllowedActions(...)`, with `0` to quit. The chosen
    `Action` is dispatched in a `switch`. A `SecurityException` or
    `IllegalArgumentException` from the service is printed, and so is an
@@ -248,8 +305,8 @@ is the only place that formats output.
 | New patient field | `Patient` record (and its `withX` methods) + the prompts in `readPatient()`; if users should see or edit it, a `PatientField` constant with its `valueOf` case and an entry in `FieldPermissions`. Old JSON records simply leave it at its default |
 | New menu action (search, edit, delete) | a new `Action` constant; grant it to professions in `ProfessionPermissions`; a guarded method on `PatientService` (`requirePermission(...)`); a `case` in `ConsoleUI.mainMenu()` |
 | New profession | a new `Profession` constant, its entries in `ProfessionPermissions` and `FieldPermissions`, and accounts with it in `users.json`. The add-patient flow asks for one team member per profession automatically |
-| New user account | an entry in `users.json` |
-| Change who may do what | `ProfessionPermissions` only. The menu and the service checks both read from it |
+| New user account | an entry in `users.json`; on Firebase also a login whose uid is that key (`scripts/create-emulator-accounts.sh` for the emulator) |
+| Change who may do what | `ProfessionPermissions` / `FieldPermissions`. The menu and the service checks read from them; then run `./gradlew generateFirebaseRules` so the database rules follow |
 | Different storage (DB, CSV) | new `PatientRepository` / `UserRepository` implementations (reuse `GsonFactory` for JSON); choose them in `App` |
 | New data in Firebase | the record type (Gson maps it); if users need to find it by something other than id, an index like `/userPatients` written in the same multi-path `PATCH` |
 | Validation | `PatientService.validate()` if it is a rule about patients; `ConsoleUI` if it is about re-prompting input |
