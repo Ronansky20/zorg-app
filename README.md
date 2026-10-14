@@ -196,7 +196,9 @@ you do):
 ```
 
 In short: you can only read a patient whose care team you are on, and only
-through your own `/userPatients` index; you can only change the fields your
+through your own `/userPatients` index; you can only read the fields your
+profession may view (a pharmacist can't read the address, weight or height, not
+even by querying the database directly); you can only change the fields your
 profession may edit; only professions that may add patients can create one, with
 themselves on the team; the care team can't be changed after creation; `/users`
 is readable when signed in and writable by nobody. Values are validated too (for

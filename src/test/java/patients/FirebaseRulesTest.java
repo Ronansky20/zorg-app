@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 
 import patients.model.Patient;
 import patients.model.PatientField;
+import patients.model.Profession;
+import patients.service.FieldPermissions;
 
 import java.io.IOException;
 import java.lang.reflect.RecordComponent;
@@ -58,6 +60,31 @@ class FirebaseRulesTest {
         for (PatientField field : PatientField.values()) {
             assertFalse(writeRule(field.key).contains("'PHARMACIST'"), field.toString());
         }
+    }
+
+    @Test
+    void onlyProfessionsThatMayViewEveryFieldCanReadAWholePatient() {
+        String read = patientRules().get(".read").getAsString();
+
+        assertTrue(read.contains("'DOCTOR'"));
+        assertTrue(read.contains("'DENTIST'"));
+        assertFalse(read.contains("'PHARMACIST'"));
+    }
+
+    @Test
+    void fieldReadRulesFollowFieldPermissions() {
+        for (PatientField field : PatientField.values()) {
+            String read = patientRules().getAsJsonObject(field.key).get(".read").getAsString();
+            assertTrue(read.contains("careTeam"), field.toString());
+            assertEquals(FieldPermissions.canView(Profession.PHARMACIST, field), read.contains("'PHARMACIST'"),
+                    field.toString());
+        }
+    }
+
+    @Test
+    void careTeamIsReadableByItsMembers() {
+        assertEquals("auth != null && data.child(auth.uid).val() === true",
+                patientRules().getAsJsonObject("careTeam").get(".read").getAsString());
     }
 
     @Test
