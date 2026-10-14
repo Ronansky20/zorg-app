@@ -9,9 +9,11 @@ import org.junit.jupiter.api.Test;
 
 import patients.model.Medication;
 import patients.model.Patient;
+import patients.model.PatientField;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -19,6 +21,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -166,6 +169,34 @@ class FirebasePatientRepositoryTest {
         assertEquals(List.of(jane), repository.findAllForUser("hendriks"));
         assertEquals(List.of(), repository.findAllForUser("nobody"));
         assertTrue(database.requests.stream().noneMatch(r -> r.startsWith("GET /patients.json")));
+    }
+
+    @Test
+    void readingSomeFieldsFetchesOnlyThoseFieldsAndTheCareTeam() {
+        Patient john = patient("a1", "John", Map.of("devries", true));
+        repository.save(john);
+        database.requests.clear();
+
+        Patient seen = repository.findAllForUser("devries",
+                EnumSet.of(PatientField.FIRST_NAME, PatientField.MEDICATION)).get(0);
+
+        assertEquals("John", seen.firstName());
+        assertEquals(john.medications(), seen.medications());
+        assertNull(seen.address());
+        assertEquals(0.0, seen.weight());
+        assertEquals(List.of("GET /userPatients/devries.json", "GET /patients/a1/careTeam.json",
+                        "GET /patients/a1/firstName.json", "GET /patients/a1/medications.json"),
+                database.requests.stream().map(r -> r.replaceFirst("\\?.*", "")).toList());
+    }
+
+    @Test
+    void readingEveryFieldFetchesTheWholePatient() {
+        repository.save(patient("a1", "John", Map.of("jansen", true)));
+        database.requests.clear();
+
+        repository.findAllForUser("jansen", EnumSet.allOf(PatientField.class));
+
+        assertTrue(database.requests.stream().anyMatch(r -> r.startsWith("GET /patients/a1.json")));
     }
 
     @Test

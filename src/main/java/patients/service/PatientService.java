@@ -37,7 +37,7 @@ public class PatientService {
 
     public List<Patient> getAll(User user) {
         requirePermission(user, Action.VIEW_LIST);
-        return repository.findAllForUser(user.id()).stream()
+        return repository.findAllForUser(user.id(), FieldPermissions.getViewableFields(user.profession())).stream()
                 .filter(p -> p.hasMember(user.id()))
                 .sorted(BY_NAME)
                 .toList();

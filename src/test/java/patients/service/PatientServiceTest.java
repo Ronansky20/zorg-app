@@ -98,6 +98,13 @@ class PatientServiceTest {
     }
 
     @Test
+    void getAllOnlyReadsTheFieldsTheUserMayView() {
+        service.getAll(user(Profession.PHARMACIST));
+
+        assertEquals(FieldPermissions.getViewableFields(Profession.PHARMACIST), repository.requestedFields);
+    }
+
+    @Test
     void getAllSeesChangesSavedThroughTheRepository() {
         startWith(patient("John"));
 

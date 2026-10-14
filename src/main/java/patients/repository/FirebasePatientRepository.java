@@ -6,8 +6,10 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import patients.model.Patient;
+import patients.model.PatientField;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +20,7 @@ import java.util.Set;
  * Stores patients in a Firebase Realtime Database. Next to {@code /patients/<id>} it keeps the
  * index {@code /userPatients/<userId>/<patientId>: true}, because database rules can't filter a
  * read of {@code /patients}: a user has to read their own index and then fetch each patient.
+ * A user who may not view every field is denied the whole patient, so they fetch their fields one by one.
  */
 public class FirebasePatientRepository implements PatientRepository {
 
@@ -48,16 +51,41 @@ public class FirebasePatientRepository implements PatientRepository {
 
     @Override
     public List<Patient> findAllForUser(String userId) {
+        return findAllForUser(userId, EnumSet.allOf(PatientField.class));
+    }
+
+    @Override
+    public List<Patient> findAllForUser(String userId, Set<PatientField> fields) {
         List<Patient> patients = new ArrayList<>();
         JsonElement index = client.get("userPatients/" + userId);
         if (index.isJsonObject()) {
             for (String patientId : index.getAsJsonObject().keySet()) {
-                findById(patientId)
+                findById(patientId, fields)
                         .filter(p -> p.hasMember(userId))
                         .ifPresent(patients::add);
             }
         }
         return patients;
+    }
+
+    private Optional<Patient> findById(String id, Set<PatientField> fields) {
+        if (fields.containsAll(EnumSet.allOf(PatientField.class))) {
+            return findById(id);
+        }
+        String path = "patients/" + id;
+        JsonElement careTeam = client.get(path + "/careTeam");
+        if (!careTeam.isJsonObject()) {
+            return Optional.empty();
+        }
+        JsonObject stored = new JsonObject();
+        stored.add("careTeam", careTeam);
+        for (PatientField field : fields) {
+            JsonElement value = client.get(path + "/" + field.key);
+            if (!value.isJsonNull()) {
+                stored.add(field.key, value);
+            }
+        }
+        return Optional.of(toPatient(id, stored));
     }
 
     @Override

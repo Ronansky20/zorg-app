@@ -1,6 +1,7 @@
 package patients.testing;
 
 import patients.model.Patient;
+import patients.model.PatientField;
 import patients.repository.PatientRepository;
 
 import java.io.IOException;
@@ -10,12 +11,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public class InMemoryPatientRepository implements PatientRepository {
 
     private final Map<String, Patient> stored = new LinkedHashMap<>();
     public int saveCalls = 0;
     public boolean broken = false;
+    public Set<PatientField> requestedFields;
 
     public InMemoryPatientRepository() {}
 
@@ -31,6 +34,12 @@ public class InMemoryPatientRepository implements PatientRepository {
             throw new UncheckedIOException(new IOException("Repository is broken"));
         }
         return new ArrayList<>(stored.values());
+    }
+
+    @Override
+    public synchronized List<Patient> findAllForUser(String userId, Set<PatientField> fields) {
+        requestedFields = fields;
+        return findAllForUser(userId);
     }
 
     @Override

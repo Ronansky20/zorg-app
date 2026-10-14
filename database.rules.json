@@ -5,34 +5,41 @@
     },
     "patients": {
       "$patientId": {
-        ".read": "auth != null && (!data.exists() || data.child('careTeam').child(auth.uid).val() === true)",
+        ".read": "auth != null && (!data.exists() || (data.child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')))",
         ".write": "auth != null && !data.exists() && newData.child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR')",
         ".validate": "newData.hasChildren(['firstName', 'lastName', 'weight', 'height', 'careTeam'])",
         "firstName": {
+          ".read": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHARMACIST' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')",
           ".write": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')",
           ".validate": "newData.isString() && newData.val().length > 0"
         },
         "lastName": {
+          ".read": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHARMACIST' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')",
           ".write": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')",
           ".validate": "newData.isString() && newData.val().length > 0"
         },
         "birthDate": {
+          ".read": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHARMACIST' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')",
           ".write": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR')",
           ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)"
         },
         "weight": {
+          ".read": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')",
           ".write": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST')",
           ".validate": "newData.isNumber() && newData.val() > 0"
         },
         "height": {
+          ".read": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')",
           ".write": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST')",
           ".validate": "newData.isNumber() && newData.val() > 0"
         },
         "address": {
+          ".read": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')",
           ".write": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')",
           ".validate": "newData.isString()"
         },
         "medications": {
+          ".read": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR' || root.child('users').child(auth.uid).child('profession').val() === 'PHARMACIST' || root.child('users').child(auth.uid).child('profession').val() === 'PHYSIOTHERAPIST' || root.child('users').child(auth.uid).child('profession').val() === 'DENTIST')",
           ".write": "auth != null && data.parent().child('careTeam').child(auth.uid).val() === true && (root.child('users').child(auth.uid).child('profession').val() === 'DOCTOR')",
           "$index": {
             ".validate": "newData.hasChildren(['name'])",
@@ -51,6 +58,7 @@
           }
         },
         "careTeam": {
+          ".read": "auth != null && data.child(auth.uid).val() === true",
           "$userId": {
             ".validate": "newData.isBoolean()"
           }

@@ -171,7 +171,9 @@ The tree looks like this:
   It skips entries whose patient is gone or no longer lists the user. Reading
   the whole of `/patients` is not an option once there are security rules,
   because rules don't filter results: a read fails as soon as one patient in it
-  is off-limits.
+  is off-limits. `PatientService` passes the fields the user may view. If that is
+  not every field (a pharmacist), the whole patient can't be read, so it fetches
+  the care team and then each of those fields separately.
 - `findAll()` still reads all of `/patients`. It is meant for admin tasks such
   as the migration, not for the app.
 
@@ -214,8 +216,13 @@ signs in first and loads the accounts afterwards.
 `PatientService`. Run it with `./gradlew generateFirebaseRules`;
 `FirebaseRulesTest` fails while the committed file is out of date. The rules:
 
-- `/patients/<id>`: readable by care team members (and readable while it
-  doesn't exist, so `save()` can check whether a patient is new). Creating one
+- `/patients/<id>`: readable as a whole by care team members whose profession
+  may view every field (and readable while it doesn't exist, so `save()` can
+  check whether a patient is new). Each field also has its own `.read` rule:
+  on the team and allowed to view that field (`FieldPermissions.canView`). The
+  care team is readable by its members. So a pharmacist reads the name, date of
+  birth, medication and care team one by one, and is denied the address, weight
+  and height even when querying the database directly. Creating one
   needs the `ADD_PATIENT` action and yourself on its team. After that, each
   field has its own `.write` rule: you must be on the team and your profession
   must have `EDIT_PATIENT` and be allowed to edit that field. The care team has
@@ -281,7 +288,7 @@ cache either; the console keeps the list it loaded at sign-in.
 `ProfessionPermissions` is a static `EnumMap<Profession, Set<Action>>`, the single
 source of truth for who may do what. `isAllowed(profession, action)` answers one
 question; `getAllowedActions(profession)` returns the whole set, which the UI uses
-to build the menu. The pharmacist currently maps to an empty set.
+to build the menu. The pharmacist can only view the list.
 
 Checking permissions in the service as well as filtering the menu in the UI is
 deliberate. The menu hides what you can't do, and the service enforces it even if
@@ -351,9 +358,9 @@ console).
   between JSON and service calls. Request and response bodies are records, kept
   separate from the model:
   - `PatientResponse.of(...)` leaves out the fields the user's profession may not
-    view (`FieldPermissions.getViewableFields`). This filtering has to happen on
-    the server, because neither the services nor the Firebase rules hide fields.
-    The care team is returned with names.
+    view (`FieldPermissions.getViewableFields`). In Firebase mode the database
+    rules already keep those fields from being read; in JSON mode this is the
+    only place they are hidden. The care team is returned with names.
   - `PatientChanges` is the `PATCH` body: a field that is absent (`null`) stays
     as stored, so a client only sends what it changes and never needs fields it
     can't see. The merged patient then goes through `update`, which checks every

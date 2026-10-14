@@ -17,6 +17,7 @@ import patients.model.User;
 import patients.repository.FirebaseClient;
 import patients.repository.FirebasePatientRepository;
 import patients.repository.FirebaseUserRepository;
+import patients.service.FieldPermissions;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -124,7 +126,7 @@ class FirebaseRulesEmulatorTest {
     @Test
     void careTeamMemberCanReadThePatient() {
         assertEquals(List.of(john), patientsFor("visser").findAllForUser("visser"));
-        assertEquals(john, patientsFor("devries").findById("p1").orElseThrow());
+        assertEquals(john, patientsFor("bakker").findById("p1").orElseThrow());
     }
 
     @Test
@@ -132,7 +134,35 @@ class FirebaseRulesEmulatorTest {
         FirebasePatientRepository hendriks = patientsFor("hendriks");
 
         assertDenied(() -> hendriks.findById("p1"));
+        assertDenied(() -> clientFor("hendriks").get("patients/p1/firstName"));
+        assertDenied(() -> clientFor("hendriks").get("patients/p1/careTeam"));
         assertEquals(List.of(), hendriks.findAllForUser("hendriks"));
+    }
+
+    @Test
+    void pharmacistCanOnlyReadTheFieldsTheyMayView() {
+        FirebaseClient devries = clientFor("devries");
+
+        assertDenied(() -> devries.get("patients/p1"));
+        assertDenied(() -> devries.get("patients/p1/address"));
+        assertDenied(() -> devries.get("patients/p1/weight"));
+        assertDenied(() -> devries.get("patients/p1/height"));
+        assertEquals("John", devries.get("patients/p1/firstName").getAsString());
+        assertEquals("1995-06-15", devries.get("patients/p1/birthDate").getAsString());
+        assertTrue(devries.get("patients/p1/medications").isJsonArray());
+        assertTrue(devries.get("patients/p1/careTeam/devries").getAsBoolean());
+    }
+
+    @Test
+    void pharmacistLoadsTheirPatientsWithOnlyTheFieldsTheyMayView() {
+        List<Patient> seen = patientsFor("devries")
+                .findAllForUser("devries", FieldPermissions.getViewableFields(Profession.PHARMACIST));
+
+        assertEquals(1, seen.size());
+        assertEquals(john.medications(), seen.get(0).medications());
+        assertEquals(john.birthDate(), seen.get(0).birthDate());
+        assertNull(seen.get(0).address());
+        assertEquals(0.0, seen.get(0).weight());
     }
 
     @Test

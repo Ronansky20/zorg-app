@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -60,8 +61,9 @@ public class FirebaseRules {
 
     private static JsonObject patients() {
         JsonObject patient = new JsonObject();
-        patient.addProperty(".read",
-                "auth != null && (!data.exists() || data.child('careTeam').child(auth.uid).val() === true)");
+        patient.addProperty(".read", "auth != null && (!data.exists()"
+                + " || (data.child('careTeam').child(auth.uid).val() === true"
+                + " && " + professionIn(FirebaseRules::canViewEveryField) + "))");
         patient.addProperty(".write", "auth != null && !data.exists()"
                 + " && newData.child('careTeam').child(auth.uid).val() === true"
                 + " && " + professionIn(p -> ProfessionPermissions.isAllowed(p, Action.ADD_PATIENT)));
@@ -69,6 +71,9 @@ public class FirebaseRules {
 
         for (PatientField field : PatientField.values()) {
             JsonObject rule = new JsonObject();
+            rule.addProperty(".read", "auth != null"
+                    + " && data.parent().child('careTeam').child(auth.uid).val() === true"
+                    + " && " + professionIn(p -> FieldPermissions.canView(p, field)));
             rule.addProperty(".write", "auth != null"
                     + " && data.parent().child('careTeam').child(auth.uid).val() === true"
                     + " && " + professionIn(p -> ProfessionPermissions.isAllowed(p, Action.EDIT_PATIENT)
@@ -83,6 +88,7 @@ public class FirebaseRules {
         JsonObject member = new JsonObject();
         member.addProperty(".validate", "newData.isBoolean()");
         JsonObject careTeam = new JsonObject();
+        careTeam.addProperty(".read", "auth != null && data.child(auth.uid).val() === true");
         careTeam.add("$userId", member);
         patient.add("careTeam", careTeam);
         patient.add("$other", rejectAll());
@@ -125,6 +131,10 @@ public class FirebaseRules {
         JsonObject reject = new JsonObject();
         reject.addProperty(".validate", false);
         return reject;
+    }
+
+    private static boolean canViewEveryField(Profession profession) {
+        return FieldPermissions.getViewableFields(profession).containsAll(EnumSet.allOf(PatientField.class));
     }
 
     private static String professionIn(Predicate<Profession> allowed) {
