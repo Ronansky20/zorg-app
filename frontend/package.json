@@ -16,8 +16,8 @@
   "type": "module",
   "main": "eslint.config.js",
   "scripts": {
-    "dev": "../scripts/dev.sh",
-    "dev:firebase": "../scripts/dev.sh --firebase",
+    "dev": "node ../scripts/dev.mjs",
+    "dev:firebase": "node ../scripts/dev.mjs --firebase",
     "dev:web": "vite",
     "build": "vite build",
     "lint": "eslint .",

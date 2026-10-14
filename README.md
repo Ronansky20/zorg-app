@@ -109,9 +109,11 @@ npm run dev:firebase   # the same against the local Firebase emulators
 ```
 
 Open the URL Vite prints (usually <http://localhost:5173>). Ctrl+C stops
-everything. Both run [scripts/dev.sh](scripts/dev.sh), so they need bash; on
-Windows without Git Bash or WSL, start the backend yourself and use
-`npm run dev:web`, which starts only Vite. The backend needs a few seconds
+everything. Both run [scripts/dev.sh](scripts/dev.sh) through
+[scripts/dev.mjs](scripts/dev.mjs), so they need bash: on Windows that is Git
+Bash (it comes with Git for Windows), even when they are started from PowerShell
+or cmd. Without it, start the backend yourself and use `npm run dev:web`, which
+starts only Vite. The backend needs a few seconds
 longer than Vite, so a page opened straight away shows proxy errors until Spring
 Boot is up.
 
@@ -622,6 +624,7 @@ database.rules.json                         Firebase security rules (generated, 
 firebase.json                               emulator ports and rules file
 frontend/                                   React + Vite web frontend (see frontend/README.md)
 scripts/dev.sh                              starts the web app and the frontend together (npm run dev)
+scripts/dev.mjs                             runs dev.sh with bash, Git Bash on Windows (used by npm run dev)
 scripts/create-emulator-accounts.sh         creates a login per account in the Auth emulator
 scripts/create-firebase-accounts.sh         creates a login per account in the real project
 scripts/smoke-test.sh                       end-to-end test of the console app
