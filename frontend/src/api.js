@@ -14,7 +14,11 @@ async function request(path, { method = 'GET', body } = {}) {
     return data
 }
 
-export const login = (userId) => request('/auth/login', { method: 'POST', body: { userId } })
+export const getMe = () => request('/me')
+export const getConfig = () => request('/config')
+export const login = (credentials) => request('/auth/login', { method: 'POST', body: credentials })
+export const logout = () => request('/auth/logout', { method: 'POST' })
+
 export const getPatients = () => request('/patients')
 export const getAccounts = () => request('/auth/accounts')
 export const getUsers = () => request('/users')
