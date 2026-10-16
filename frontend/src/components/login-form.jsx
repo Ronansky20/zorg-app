@@ -10,7 +10,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { IconLayoutRows } from "@tabler/icons-react"
 
 export function LoginForm({
   mode,
@@ -45,10 +44,9 @@ export function LoginForm({
       <form onSubmit={handleSubmit}>
         <FieldGroup>
           <div className="flex flex-col items-center gap-2 text-center">
-            <div className="flex size-8 items-center justify-center rounded-md">
-              <IconLayoutRows className="size-6" />
-            </div>
-            <h1 className="text-xl font-bold">Sign in to Zorg</h1>
+            <h1 className="text-7xl font-black leading-none tracking-tight text-foreground">
+              Zorg<br />App
+            </h1>
             {mode === "json" && <FieldDescription>Local mode: choose an account</FieldDescription>}
           </div>
 
