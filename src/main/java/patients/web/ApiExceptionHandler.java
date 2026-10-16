@@ -2,14 +2,17 @@ package patients.web;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import patients.service.PatientNotFoundException;
 import patients.web.session.NotSignedInException;
 import patients.web.session.SignInFailedException;
+import patients.web.session.TooManyAttemptsException;
 
 import java.io.UncheckedIOException;
 
@@ -21,6 +24,13 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler({NotSignedInException.class, SignInFailedException.class})
     ProblemDetail unauthorized(RuntimeException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
+    }
+
+    @ExceptionHandler(TooManyAttemptsException.class)
+    ResponseEntity<ProblemDetail> tooManyAttempts(TooManyAttemptsException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf((e.retryAfter().toMillis() + 999) / 1000))
+                .body(ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, e.getMessage()));
     }
 
     @ExceptionHandler(SecurityException.class)

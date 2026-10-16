@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import patients.web.session.ClientHeaderInterceptor;
+import patients.web.session.LoginThrottle;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -14,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static patients.web.WebTestSupport.json;
@@ -63,6 +65,25 @@ class AuthControllerTest {
         mvc.perform(json(post("/api/auth/login"), "{\"userId\": \"nobody\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.detail").value("Unknown account"));
+    }
+
+    @Test
+    void repeatedFailuresAreThrottled() throws Exception {
+        for (int i = 0; i < LoginThrottle.MAX_PER_ACCOUNT; i++) {
+            mvc.perform(json(post("/api/auth/login"), "{\"userId\": \"throttled\"}"))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mvc.perform(json(post("/api/auth/login"), "{\"userId\": \"throttled\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists("Retry-After"))
+                .andExpect(jsonPath("$.detail").value("Too many failed attempts, try again in 15 minutes"));
+    }
+
+    @Test
+    void loginTellsTheSessionTimeout() throws Exception {
+        mvc.perform(json(post("/api/auth/login"), "{\"userId\": \"jansen\"}"))
+                .andExpect(jsonPath("$.sessionTimeoutSeconds").isNumber());
     }
 
     @Test

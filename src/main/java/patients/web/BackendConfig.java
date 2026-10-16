@@ -7,6 +7,7 @@ import org.springframework.core.env.Environment;
 import patients.Backend;
 import patients.web.session.FirebaseSignIn;
 import patients.web.session.LocalSignIn;
+import patients.web.session.LoginThrottle;
 import patients.web.session.SignIn;
 
 import java.nio.file.Path;
@@ -29,5 +30,10 @@ class BackendConfig {
             throw new IllegalStateException(Backend.SIGN_IN_SETTINGS_MISSING);
         }
         return new FirebaseSignIn(backend);
+    }
+
+    @Bean
+    LoginThrottle loginThrottle() {
+        return new LoginThrottle();
     }
 }

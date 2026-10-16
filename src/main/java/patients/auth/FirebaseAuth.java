@@ -26,6 +26,7 @@ public class FirebaseAuth implements Authenticator {
     private static final Duration REFRESH_MARGIN = Duration.ofMinutes(1);
     private static final Set<String> WRONG_CREDENTIALS = Set.of("EMAIL_NOT_FOUND", "INVALID_PASSWORD",
             "INVALID_LOGIN_CREDENTIALS", "INVALID_EMAIL", "MISSING_PASSWORD", "USER_DISABLED");
+    private static final String TOO_MANY_ATTEMPTS = "TOO_MANY_ATTEMPTS_TRY_LATER";
 
     private final String endpointPrefix;
     private final String apiKey;
@@ -112,8 +113,12 @@ public class FirebaseAuth implements Authenticator {
         }
 
         if (response.statusCode() / 100 != 2) {
-            if (WRONG_CREDENTIALS.contains(errorCode(response.body()))) {
+            String code = errorCode(response.body());
+            if (WRONG_CREDENTIALS.contains(code)) {
                 throw new SecurityException("Wrong email or password");
+            }
+            if (TOO_MANY_ATTEMPTS.equals(code)) {
+                throw new SecurityException("Too many failed attempts, try again later");
             }
             throw failure("Firebase Auth failed: HTTP " + response.statusCode() + " " + response.body(), null);
         }

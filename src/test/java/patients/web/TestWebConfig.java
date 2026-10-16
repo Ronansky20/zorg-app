@@ -8,6 +8,7 @@ import patients.model.User;
 import patients.testing.InMemoryPatientRepository;
 import patients.testing.InMemoryUserRepository;
 import patients.web.session.LocalSignIn;
+import patients.web.session.LoginThrottle;
 import patients.web.session.SignIn;
 
 import java.util.List;
@@ -30,5 +31,10 @@ class TestWebConfig {
     @Bean
     SignIn signIn(InMemoryPatientRepository patients) {
         return new LocalSignIn(new Backend.Repositories(patients, new InMemoryUserRepository(USERS)));
+    }
+
+    @Bean
+    LoginThrottle loginThrottle() {
+        return new LoginThrottle();
     }
 }
