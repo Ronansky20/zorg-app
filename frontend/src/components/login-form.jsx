@@ -57,11 +57,13 @@ export function LoginForm({
             <>
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
-                <Input id="email" name="email" type="email" autoComplete="username" required />
+                <FieldDescription className="nth-last-2:mt-0">Enter your email</FieldDescription>
+                <Input id="email" name="email" type="email" autoComplete="username" placeholder="john.doe@example.com" required />
               </Field>
               <Field>
                 <FieldLabel htmlFor="password">Password</FieldLabel>
-                <Input id="password" name="password" type="password" autoComplete="current-password" required />
+                <FieldDescription className="nth-last-2:mt-0">Enter your password</FieldDescription>
+                <Input id="password" name="password" type="password" autoComplete="current-password" placeholder="••••••••" required />
               </Field>
               <Field>
                 <Button type="submit" isDisabled={pending}>{pending ? "Signing in…" : "Login"}</Button>
