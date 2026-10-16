@@ -5,17 +5,15 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import patients.testing.MutableClock;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -132,6 +130,15 @@ class FirebaseAuthTest {
     }
 
     @Test
+    void tooManyAttemptsIsASecurityException() {
+        status = 400;
+        signInResponse = "{\"error\":{\"code\":400,\"message\":\"TOO_MANY_ATTEMPTS_TRY_LATER : Access disabled\"}}";
+
+        SecurityException e = assertThrows(SecurityException.class, () -> auth.signIn("jansen@zorg.test", "nope"));
+        assertEquals("Too many failed attempts, try again later", e.getMessage());
+    }
+
+    @Test
     void otherErrorsAreUncheckedIOExceptions() {
         status = 400;
         signInResponse = "{\"error\":{\"code\":400,\"message\":\"API_KEY_INVALID\"}}";
@@ -154,32 +161,5 @@ class FirebaseAuthTest {
 
         assertThrows(UncheckedIOException.class, () -> auth.signIn("jansen@zorg.test", "secret"));
         assertNull(auth.idToken());
-    }
-
-    private static class MutableClock extends Clock {
-        private Instant now;
-
-        MutableClock(Instant now) {
-            this.now = now;
-        }
-
-        void advance(Duration duration) {
-            now = now.plus(duration);
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return now;
-        }
     }
 }

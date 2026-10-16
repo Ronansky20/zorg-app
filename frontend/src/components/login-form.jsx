@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 export function LoginForm({
   mode,
   accounts = [],
+  notice,
   onSubmit,
   className,
   ...props
@@ -22,6 +23,7 @@ export function LoginForm({
   const [pending, setPending] = useState(false)
 
   async function submit(credentials) {
+    if (pending) return
     setPending(true)
     setError(null)
 
@@ -48,6 +50,7 @@ export function LoginForm({
               Zorg<br />App
             </h1>
             {mode === "json" && <FieldDescription>Local mode: choose an account</FieldDescription>}
+            {notice && <FieldDescription role="status">{notice}</FieldDescription>}
           </div>
 
           {mode === "firebase" ? (
@@ -61,14 +64,15 @@ export function LoginForm({
                 <Input id="password" name="password" type="password" autoComplete="current-password" required />
               </Field>
               <Field>
-                <Button type="submit" disabled={pending}>{pending ? "Signing in…" : "Login"}</Button>
+                <Button type="submit" isDisabled={pending}>{pending ? "Signing in…" : "Login"}</Button>
               </Field>
             </>
           ) : (
             <Field className="grid gap-2">
+              {accounts.length === 0 && <FieldDescription>No accounts found in users.json</FieldDescription>}
               {accounts.map((account) => (
-                <Button key={account.id} type="button" variant="outline" disabled={pending}
-                  onClick={() => submit({ userId: account.id })}>
+                <Button key={account.id} type="button" variant="outline" isDisabled={pending}
+                  onPress={() => submit({ userId: account.id })}>
                   {account.name} · {account.profession}
                 </Button>
               ))}

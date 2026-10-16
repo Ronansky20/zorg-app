@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import patients.web.session.LoginRequest;
+import patients.web.session.LoginThrottle;
 import patients.web.session.SignIn;
 import patients.web.session.Workspace;
 
@@ -19,9 +20,11 @@ import java.util.List;
 class AuthController {
 
     private final SignIn signIn;
+    private final LoginThrottle throttle;
 
-    AuthController(SignIn signIn) {
+    AuthController(SignIn signIn, LoginThrottle throttle) {
         this.signIn = signIn;
+        this.throttle = throttle;
     }
 
     @GetMapping("/auth/accounts")
@@ -31,11 +34,11 @@ class AuthController {
 
     @PostMapping("/auth/login")
     MeResponse login(@RequestBody LoginRequest login, HttpServletRequest request) {
-        Workspace workspace = signIn.signIn(login);
+        Workspace workspace = throttle.signIn(login.account(), request.getRemoteAddr(), () -> signIn.signIn(login));
         HttpSession session = request.getSession(true);
         request.changeSessionId();
         session.setAttribute(Workspace.SESSION_ATTRIBUTE, workspace);
-        return MeResponse.of(workspace.user());
+        return MeResponse.of(workspace.user(), session);
     }
 
     @PostMapping("/auth/logout")
@@ -48,7 +51,7 @@ class AuthController {
     }
 
     @GetMapping("/me")
-    MeResponse me(Workspace workspace) {
-        return MeResponse.of(workspace.user());
+    MeResponse me(Workspace workspace, HttpServletRequest request) {
+        return MeResponse.of(workspace.user(), request.getSession(false));
     }
 }

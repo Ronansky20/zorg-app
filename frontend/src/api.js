@@ -1,16 +1,29 @@
+const sessionListeners = new Set()
+
+export function watchSession(listener) {
+    sessionListeners.add(listener)
+    return () => sessionListeners.delete(listener)
+}
+
 async function request(path, { method = 'GET', body } = {}) {
     const headers = {}
     if (method !== 'GET') headers['X-Zorg-Client'] = 'web'
     if (body !== undefined) headers['Content-Type'] = 'application/json'
 
-    const response = await fetch(`/api${path}`, {
-        method,
-        headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
-    })
+    let response
+    try {
+        response = await fetch(`/api${path}`, {
+            method,
+            headers,
+            body: body === undefined ? undefined : JSON.stringify(body),
+        })
+    } catch {
+        throw new Error("Can't reach the server, check your connection and try again")
+    }
+    if (path !== '/auth/login') sessionListeners.forEach((listener) => listener(response.status !== 401))
     if (response.status === 204) return null
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.detail ?? response.statusText)
+    const data = await response.json().catch(() => null)
+    if (!response.ok) throw new Error(data?.detail ?? `The server returned an error (${response.status}), try again later`)
     return data
 }
 

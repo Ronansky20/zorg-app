@@ -200,8 +200,10 @@ login's uid (`localId`), which is also the user's key in `/users`: a login's uid
 *is* the account id that care teams refer to. It keeps the ID token (valid for an
 hour) and the refresh token. `idToken()` refreshes through
 `securetoken.googleapis.com` once the token is within a minute of expiring.
-Wrong credentials become a `SecurityException` ("Wrong email or password");
-anything else becomes an `UncheckedIOException`. `forEmulator(host)` points it at
+Wrong credentials become a `SecurityException` ("Wrong email or password"), as
+does Firebase locking an account after too many failed attempts; anything else
+becomes an `UncheckedIOException`. `FirebaseSignIn` replaces that exception's
+message with a generic one, so the raw Firebase response only reaches the log. `forEmulator(host)` points it at
 the Auth emulator, `forProject(apiKey)` at Google.
 
 The UI only sees the `Authenticator` interface (`signIn(email, password)`
@@ -344,7 +346,18 @@ console).
   `FirebaseAuth`, `FirebaseClient` and services *per session*, so every database
   request carries that user's ID token and the security rules apply per user.
   `AuthController` stores the workspace in the `HttpSession`, changing the
-  session id on login against session fixation.
+  session id on login against session fixation. `/api/me` and the login response
+  include `sessionTimeoutSeconds`; the frontend checks `/api/me` once that much
+  time has passed without a request, and returns to the login page on any 401.
+- **Login throttling.** [LoginThrottle](../src/main/java/patients/web/session/LoginThrottle.java)
+  wraps every sign-in. Within a 15-minute window it allows 5 failed attempts per
+  account (email or user id) and 50 per client address; after that login
+  answers 429 with `Retry-After`, without contacting Firebase. Attempts are
+  counted before signing in, so parallel requests can't slip past the limit; a
+  success clears the account and doesn't count for the address, and errors that
+  aren't wrong credentials (Firebase unreachable) don't count. Counts are kept in
+  memory, so a restart clears them. Behind a reverse proxy every request has the
+  proxy's address, so set `server.forward-headers-strategy=native` there.
 - **Workspace parameter.** [WorkspaceArgumentResolver](../src/main/java/patients/web/session/WorkspaceArgumentResolver.java)
   lets a controller method declare a `Workspace` parameter; without a signed-in
   session it throws `NotSignedInException` (401), so no controller has to check.

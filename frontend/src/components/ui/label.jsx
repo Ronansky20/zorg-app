@@ -1,4 +1,3 @@
-import * as React from "react"
 import { cn } from "cn"
 import { LabelContext, Label as LabelPrimitive } from "react-aria-components";
 

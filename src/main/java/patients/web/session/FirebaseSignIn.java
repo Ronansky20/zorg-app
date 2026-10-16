@@ -6,6 +6,7 @@ import patients.model.User;
 import patients.service.PatientService;
 import patients.service.UserService;
 
+import java.io.UncheckedIOException;
 import java.util.List;
 
 public class FirebaseSignIn implements SignIn {
@@ -37,6 +38,8 @@ public class FirebaseSignIn implements SignIn {
             uid = auth.signIn(request.email(), request.password());
         } catch (SecurityException e) {
             throw new SignInFailedException(e.getMessage());
+        } catch (UncheckedIOException e) {
+            throw new UncheckedIOException("Can't reach the sign-in service, try again later", e.getCause());
         }
 
         Backend.Repositories repositories = backend.firebase(auth);

@@ -80,9 +80,9 @@ curl -b jar localhost:8080/api/patients
 | --- | --- | --- | --- |
 | GET | `/api/config` | — | `{mode: "json" or "firebase", professions, fields, actions}`, each a list of `{id, label}` |
 | GET | `/api/auth/accounts` | — | accounts to choose from in JSON mode, `[{id, name, profession}]` (empty in Firebase mode) |
-| POST | `/api/auth/login` | header | `{userId}` (JSON mode) or `{email, password}` (Firebase) → same as `/api/me` |
+| POST | `/api/auth/login` | header | `{userId}` (JSON mode) or `{email, password}` (Firebase) → same as `/api/me`; 429 after 5 failures for an account or 50 from one address in 15 minutes |
 | POST | `/api/auth/logout` | header | 204 |
-| GET | `/api/me` | session | `{user, actions, viewableFields, editableFields}`; fields are keys such as `firstName` |
+| GET | `/api/me` | session | `{user, actions, viewableFields, editableFields, sessionTimeoutSeconds}`; fields are keys such as `firstName` |
 | GET | `/api/users` | session | all accounts, for choosing a care team |
 | GET | `/api/patients` | session | your patients, sorted by name, with only the fields you may see |
 | GET | `/api/patients/{id}` | session | one patient, or 404 if it doesn't exist or you aren't on its team |
