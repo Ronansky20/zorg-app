@@ -121,6 +121,9 @@ class PatientControllerTest {
         mvc.perform(json(post("/api/patients"), JANE.replace("Paracetamol", " ")).session(jansen))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("The medication name can't be empty"));
+        mvc.perform(json(post("/api/patients"), JANE.replace("Paracetamol", "Aspirin")).session(jansen))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Unknown medication: Aspirin"));
         mvc.perform(json(post("/api/patients"), JANE.replace("visser", "nobody")).session(jansen))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("Unknown care team member: nobody"));

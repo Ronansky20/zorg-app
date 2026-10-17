@@ -44,7 +44,7 @@
           "$index": {
             ".validate": "newData.hasChildren(['name'])",
             "name": {
-              ".validate": "newData.isString()"
+              ".validate": "(newData.val() === 'Paracetamol' || newData.val() === 'Ibuprofen' || newData.val() === 'Amoxicillin' || newData.val() === 'Omeprazole' || newData.val() === 'Metformin' || newData.val() === 'Simvastatin' || newData.val() === 'Amlodipine' || newData.val() === 'Levothyroxine' || newData.val() === 'Insulin' || newData.val() === 'Heparin' || newData.val() === 'Vitamin B12' || newData.val() === 'Adrenaline' || newData.val() === 'Ceftriaxone' || newData.val() === 'Enoxaparin' || newData.val() === 'Morphine' || newData.val() === 'Influenza vaccine' || newData.val() === 'Hydrocortisone' || newData.val() === 'Fusidic acid' || newData.val() === 'Betamethasone' || newData.val() === 'Mupirocin' || newData.val() === 'Clotrimazole' || newData.val() === 'Miconazole' || newData.val() === 'Zinc oxide' || newData.val() === 'Silver sulfadiazine')"
             },
             "dosage": {
               ".validate": "newData.isString()"

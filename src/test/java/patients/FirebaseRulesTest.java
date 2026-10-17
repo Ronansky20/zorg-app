@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 
+import patients.model.MedicationCatalog;
 import patients.model.Patient;
 import patients.model.PatientField;
 import patients.model.Profession;
@@ -60,6 +61,17 @@ class FirebaseRulesTest {
         for (PatientField field : PatientField.values()) {
             assertFalse(writeRule(field.key).contains("'PHARMACIST'"), field.toString());
         }
+    }
+
+    @Test
+    void medicationNamesMustComeFromTheCatalog() {
+        String name = patientRules().getAsJsonObject("medications").getAsJsonObject("$index")
+                .getAsJsonObject("name").get(".validate").getAsString();
+
+        for (MedicationCatalog medication : MedicationCatalog.values()) {
+            assertTrue(name.contains("'" + medication.label + "'"), medication.toString());
+        }
+        assertFalse(name.contains("Aspirin"));
     }
 
     @Test
