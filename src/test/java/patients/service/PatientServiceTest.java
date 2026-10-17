@@ -173,7 +173,8 @@ class PatientServiceTest {
                 patient("John").withBirthDate(null),
                 patient("John").withBirthDate(LocalDate.of(2026, 1, 2)),
                 patient("John").withMedications(List.of(new Medication(" ", "500 mg", "3x daily"))),
-                patient("John").withMedications(List.of(new Medication(null, "500 mg", "3x daily"))));
+                patient("John").withMedications(List.of(new Medication(null, "500 mg", "3x daily"))),
+                patient("John").withMedications(List.of(new Medication("Aspirin", "80 mg", "1x daily"))));
 
         for (Patient patient : invalid) {
             assertThrows(IllegalArgumentException.class, () -> service.add(DOCTOR, patient), patient.toString());
@@ -316,6 +317,25 @@ class PatientServiceTest {
         service.update(DOCTOR, updated);
 
         assertEquals(List.of(updated), service.getAll(DOCTOR));
+    }
+
+    @Test
+    void medicationUpdateMustUseTheCatalog() {
+        startWith(patient("John"));
+        Patient updated = patient("John").withMedications(List.of(new Medication("Aspirin", "80 mg", "1x daily")));
+
+        assertThrows(IllegalArgumentException.class, () -> service.update(DOCTOR, updated));
+        assertEquals(0, repository.saveCalls);
+    }
+
+    @Test
+    void unchangedMedicationOutsideTheCatalogDoesNotBlockOtherEdits() {
+        Patient legacy = patient("John").withMedications(List.of(new Medication("Aspirin", "80 mg", "1x daily")));
+        startWith(legacy);
+
+        service.update(user(Profession.DENTIST), legacy.withAddress("Oak Lane 1"));
+
+        assertEquals("Oak Lane 1", service.get(DOCTOR, "john").address());
     }
 
     @Test

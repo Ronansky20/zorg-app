@@ -3,6 +3,7 @@ package patients;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import patients.model.Action;
+import patients.model.MedicationCatalog;
 import patients.model.PatientField;
 import patients.model.Profession;
 import patients.service.FieldPermissions;
@@ -106,6 +107,7 @@ public class FirebaseRules {
             rule.addProperty(".validate", "newData.isString()");
             medication.add(key, rule);
         }
+        medication.getAsJsonObject("name").addProperty(".validate", knownMedication());
         medication.add("$other", rejectAll());
         return medication;
     }
@@ -135,6 +137,14 @@ public class FirebaseRules {
 
     private static boolean canViewEveryField(Profession profession) {
         return FieldPermissions.getViewableFields(profession).containsAll(EnumSet.allOf(PatientField.class));
+    }
+
+    private static String knownMedication() {
+        List<String> checks = new ArrayList<>();
+        for (MedicationCatalog medication : MedicationCatalog.values()) {
+            checks.add("newData.val() === '" + medication.label + "'");
+        }
+        return "(" + String.join(" || ", checks) + ")";
     }
 
     private static String professionIn(Predicate<Profession> allowed) {

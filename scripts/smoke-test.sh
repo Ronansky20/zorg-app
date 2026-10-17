@@ -87,8 +87,8 @@ echo "Doctor adds a patient with medication, adds more medication and sees every
 # 1 Jansen, 2 Hendriks (doctors), 3 Mulder, 4 de Vries (pharmacists),
 # 5 de Jong, 6 Bakker (physios), 7 Peters, 8 Visser (dentists).
 # account 1 = Dr. Max Jansen; menu 2 = Add patient (care team: no other doctor, pharmacist 2 = de Vries,
-# physio 2 = Bakker, dentist 2 = Visser; one medication, then n),
-# 3 = Edit Patient -> patient 1 -> field 7 Medication -> 1 Add medication,
+# physio 2 = Bakker, dentist 2 = Visser; medication 1 = Paracetamol, then n),
+# 3 = Edit Patient -> patient 1 -> field 7 Medication -> 1 Add medication -> 2 Ibuprofen,
 # 1 = View patients, 0 = Quit
 run_app doctor.out < <(login jansen 1; cat <<'EOF'
 2
@@ -103,7 +103,7 @@ Elm Street 58
 2
 2
 y
-Paracetamol
+1
 500 mg
 3x daily
 n
@@ -111,7 +111,7 @@ n
 1
 7
 1
-Ibuprofen
+2
 400 mg
 as needed
 1

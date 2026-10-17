@@ -35,7 +35,11 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.mode").value("json"))
                 .andExpect(jsonPath("$.professions", hasSize(4)))
                 .andExpect(jsonPath("$.fields[0].id").value("firstName"))
-                .andExpect(jsonPath("$.fields[0].label").value("First name"));
+                .andExpect(jsonPath("$.fields[0].label").value("First name"))
+                .andExpect(jsonPath("$.medicationTypes[*].id", contains("PILL", "INJECTION", "OINTMENT")))
+                .andExpect(jsonPath("$.medications", hasSize(24)))
+                .andExpect(jsonPath("$.medications[0].name").value("Paracetamol"))
+                .andExpect(jsonPath("$.medications[0].type").value("PILL"));
     }
 
     @Test

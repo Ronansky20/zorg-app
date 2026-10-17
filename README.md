@@ -78,7 +78,7 @@ curl -b jar localhost:8080/api/patients
 
 | Method | Path | Needs | Body → response |
 | --- | --- | --- | --- |
-| GET | `/api/config` | — | `{mode: "json" or "firebase", professions, fields, actions}`, each a list of `{id, label}` |
+| GET | `/api/config` | — | `{mode: "json" or "firebase", professions, fields, actions, medicationTypes, medications}`; all but `medications` are lists of `{id, label}`, `medications` is a list of `{name, type}` where `type` is a `medicationTypes` id |
 | GET | `/api/auth/accounts` | — | accounts to choose from in JSON mode, `[{id, name, profession}]` (empty in Firebase mode) |
 | POST | `/api/auth/login` | header | `{userId}` (JSON mode) or `{email, password}` (Firebase) → same as `/api/me`; 429 after 5 failures for an account or 50 from one address in 15 minutes |
 | POST | `/api/auth/logout` | header | 204 |
@@ -461,7 +461,10 @@ Enter the patient's address:
 Choose the patient's doctor (0 = none)
 ... (the same for pharmacist, physiotherapist and dentist)
 Add medication? (y/n)
-Enter the medication name:
+1. Paracetamol (Pill)
+...
+24. Silver sulfadiazine (Ointment)
+Choose the medication 1-24
 Enter the dosage (e.g. 500 mg):
 Enter the frequency (e.g. 3x daily):
 Add medication? (y/n)
@@ -473,7 +476,26 @@ to add a patient without medication.
 ### Medication
 
 Each patient has a list of medications, each with a name, a dosage and a
-frequency. It is shown as one line when viewing patients:
+frequency. The name is picked from a fixed list in
+[MedicationCatalog.java](src/main/java/patients/model/MedicationCatalog.java):
+
+| Pill | Injection | Ointment |
+| --- | --- | --- |
+| Paracetamol | Insulin | Hydrocortisone |
+| Ibuprofen | Heparin | Fusidic acid |
+| Amoxicillin | Vitamin B12 | Betamethasone |
+| Omeprazole | Adrenaline | Mupirocin |
+| Metformin | Ceftriaxone | Clotrimazole |
+| Simvastatin | Enoxaparin | Miconazole |
+| Amlodipine | Morphine | Zinc oxide |
+| Levothyroxine | Influenza vaccine | Silver sulfadiazine |
+
+Saving a medication list with any other name is refused, both by
+`PatientService` and by the Firebase rules. A patient whose stored list
+predates the catalog can still have other fields edited, but the list has to
+be brought in line the next time a doctor changes it.
+
+It is shown as one line when viewing patients:
 
 ```text
 Medication: Paracetamol 500 mg, 3x daily; Ibuprofen 400 mg, as needed

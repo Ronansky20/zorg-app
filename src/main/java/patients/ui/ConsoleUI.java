@@ -2,6 +2,7 @@ package patients.ui;
 
 import patients.auth.Authenticator;
 import patients.model.Medication;
+import patients.model.MedicationCatalog;
 import patients.model.Patient;
 import patients.model.PatientField;
 import patients.model.Profession;
@@ -226,11 +227,16 @@ public class ConsoleUI {
     }
 
     private Medication readMedication() {
-        String name = readLine("Enter the medication name: ");
-        while (name.isEmpty()) {
-            System.out.println("The medication name can't be empty, try again.");
-            name = readLine("Enter the medication name: ");
+        MedicationCatalog[] catalog = MedicationCatalog.values();
+        for (int i = 0; i < catalog.length; i++) {
+            System.out.println((i + 1) + ". " + catalog[i].label + " (" + catalog[i].type.label + ")");
         }
+        int choice = readInt("Choose the medication 1-" + catalog.length);
+        while (choice < 1 || choice > catalog.length) {
+            System.out.println("That is not a medication, please try again.");
+            choice = readInt("Choose the medication 1-" + catalog.length);
+        }
+        String name = catalog[choice - 1].label;
         String dosage = readLine("Enter the dosage (e.g. 500 mg): ");
         String frequency = readLine("Enter the frequency (e.g. 3x daily): ");
         return new Medication(name, dosage, frequency);

@@ -2,6 +2,7 @@ package patients.service;
 
 import patients.model.Action;
 import patients.model.Medication;
+import patients.model.MedicationCatalog;
 import patients.model.Patient;
 import patients.model.PatientField;
 import patients.model.User;
@@ -53,6 +54,7 @@ public class PatientService {
     public Patient add(User user, Patient patient) {
         requirePermission(user, Action.ADD_PATIENT);
         validate(patient);
+        validateMedications(patient.medications());
         Map<String, Boolean> careTeam = new LinkedHashMap<>(patient.careTeam());
         careTeam.put(user.id(), true);
         Patient toSave = patient.withCareTeam(careTeam);
@@ -81,6 +83,9 @@ public class PatientService {
             throw new SecurityException("The care team can't be edited");
         }
         validate(updatedPatient);
+        if (!Objects.equals(existing.medications(), updatedPatient.medications())) {
+            validateMedications(updatedPatient.medications());
+        }
 
         repository.save(updatedPatient);
         return updatedPatient;
@@ -114,9 +119,15 @@ public class PatientService {
         if (!(patient.height() > 0)) {
             throw new IllegalArgumentException("Height must be greater than 0");
         }
-        for (Medication medication : patient.medications()) {
+    }
+
+    private static void validateMedications(List<Medication> medications) {
+        for (Medication medication : medications) {
             if (medication == null || medication.name() == null || medication.name().isBlank()) {
                 throw new IllegalArgumentException("The medication name can't be empty");
+            }
+            if (!MedicationCatalog.contains(medication.name())) {
+                throw new IllegalArgumentException("Unknown medication: " + medication.name());
             }
         }
     }

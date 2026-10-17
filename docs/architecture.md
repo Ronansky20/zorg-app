@@ -38,7 +38,7 @@ web controllers ───┤    (rules, user per call)    ├──► JsonPatie
                        │
                        └──► FirebaseRules ──► database.rules.json (the same rules, on the server)
 
-Patient, User, Medication, Profession, Action, PatientField  (model types, used everywhere)
+Patient, User, Medication, MedicationCatalog, Profession, Action, PatientField  (model types, used everywhere)
 ```
 
 Dependencies point in one direction only: the UIs know the services, the
@@ -53,7 +53,9 @@ reads from `System.in`, writes to `System.out` or knows about HTTP.
 An immutable `record` holding an `id`, `firstName`, `lastName`, `birthDate`, `weight`, `height`,
 `address`, a `careTeam` and a list of
 [Medication](../src/main/java/patients/model/Medication.java) records (`name`,
-`dosage`, `frequency`). The compact constructor turns a missing (`null`) care
+`dosage`, `frequency`). The `name` is the label of a
+[MedicationCatalog](../src/main/java/patients/model/MedicationCatalog.java) entry,
+each of which has a `MedicationType` (pill, injection or ointment). The compact constructor turns a missing (`null`) care
 team or medication list into an empty one, so older data files still load, and
 stores unmodifiable copies. Its behaviour is `age()`, derived from the date of
 birth and today's date, `bmi()`, derived from weight and height, and
@@ -279,7 +281,8 @@ Every method is guarded by `requirePermission(user, action)`, which throws
 profession may not perform that action. `add` and `update` also validate the
 patient: first and last name not blank, a date of birth that is not in the
 future (by the injected `Clock`, so tests can fix "today"), weight and height
-above 0, and a name on every medication. Otherwise they throw
+above 0, and every medication named after a `MedicationCatalog` entry (`update`
+only checks this when the medication list changed). Otherwise they throw
 `IllegalArgumentException`; this also keeps `bmi()` finite.
 
 [UserService](../src/main/java/patients/service/UserService.java) reads the
