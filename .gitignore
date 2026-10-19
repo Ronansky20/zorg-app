@@ -14,6 +14,6 @@ build/
 # VS Code Java extension output
 bin/
 
-# Local-only notes for Claude
+# Local Claude files
 CLAUDE.md
 learn.md
