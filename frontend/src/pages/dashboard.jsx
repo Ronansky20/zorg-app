@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { getPatients } from "@/api"
-import { fullName, isIncomplete } from "@/lib/patients"
+import { dashboardFor, fullName, isIncomplete, isOnMedication } from "@/lib/patients"
 import { AppSidebar } from "@/components/app-sidebar"
 import { PatientsTable } from "@/components/patients-table"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,13 @@ function StatItem({ title, value }) {
   )
 }
 
-export function DoctorDashboard({ me, onLogout, logoutError }) {
+const STATS = {
+  incomplete: { title: "Incomplete records", matches: (patient, me) => isIncomplete(patient, me.viewableFields) },
+  onMedication: { title: "On medication", matches: isOnMedication },
+}
+
+export function Dashboard({ me, onLogout, logoutError }) {
+  const dashboard = dashboardFor(me.user.profession)
   const [patients, setPatients] = useState(null)
   const [loadError, setLoadError] = useState(null)
   const [attempt, setAttempt] = useState(0)
@@ -42,8 +48,6 @@ export function DoctorDashboard({ me, onLogout, logoutError }) {
     if (id === "search") filterRef.current?.focus()
   }
 
-  const incomplete = patients?.filter((patient) => isIncomplete(patient, me.viewableFields)).length
-
   return (
     <SidebarProvider>
       <AppSidebar me={me} active="dashboard" query={query} onQueryChange={setQuery}
@@ -54,14 +58,17 @@ export function DoctorDashboard({ me, onLogout, logoutError }) {
         <div role="list" aria-label="Overview" className="flex flex-wrap gap-6">
           <StatItem title="Last Visited Patient" value={lastVisited ? fullName(lastVisited) : "—"} />
           <StatItem title="My patients" value={patients?.length ?? "—"} />
-          <StatItem title="Incomplete records" value={incomplete ?? "—"} />
+          {dashboard.stats.map((key) => (
+            <StatItem key={key} title={STATS[key].title}
+              value={patients?.filter((patient) => STATS[key].matches(patient, me)).length ?? "—"} />
+          ))}
         </div>
 
         <section ref={patientsRef} aria-labelledby="patients-title"
           className="flex flex-col gap-1 rounded-xl border bg-card p-6 md:p-14">
           <div className="flex flex-col gap-2">
             <h1 id="patients-title" className="font-heading text-3xl font-semibold leading-9">Your patients</h1>
-            <p className="text-base text-muted-foreground">These are the patients assigned to your care</p>
+            <p className="text-base text-muted-foreground">{dashboard.description}</p>
           </div>
           {loadError ? (
             <div className="flex flex-col items-start gap-4 py-4">
@@ -69,7 +76,8 @@ export function DoctorDashboard({ me, onLogout, logoutError }) {
               <Button variant="outline" onPress={retry}>Try again</Button>
             </div>
           ) : patients && (
-            <PatientsTable patients={patients} viewableFields={me.viewableFields} query={query}
+            <PatientsTable patients={patients} viewableFields={me.viewableFields}
+              defaultColumns={dashboard.columns} query={query}
               onQueryChange={setQuery} onOpen={setLastVisited} filterRef={filterRef} />
           )}
         </section>

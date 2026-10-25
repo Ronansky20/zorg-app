@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { RiArrowDownSLine } from "@remixicon/react"
 import sortIcon from "@/assets/arrow-down-up.svg"
-import { DEFAULT_COLUMNS, PATIENT_COLUMNS, formatField, matchesQuery } from "@/lib/patients"
+import { PATIENT_COLUMNS, formatField, matchesQuery } from "@/lib/patients"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -20,9 +20,9 @@ function pageWindow(page, pageCount) {
   return Array.from({ length: Math.min(PAGE_WINDOW, pageCount) }, (_, i) => start + i)
 }
 
-export function PatientsTable({ patients, viewableFields, query, onQueryChange, onOpen, filterRef }) {
+export function PatientsTable({ patients, viewableFields, defaultColumns, query, onQueryChange, onOpen, filterRef }) {
   const viewable = PATIENT_COLUMNS.filter((column) => viewableFields.includes(column.key))
-  const [visible, setVisible] = useState(() => new Set(DEFAULT_COLUMNS.filter((key) => viewableFields.includes(key))))
+  const [visible, setVisible] = useState(() => new Set(defaultColumns.filter((key) => viewableFields.includes(key))))
   const [sort, setSort] = useState({ column: "lastName", direction: "ascending" })
   const [page, setPage] = useState(1)
 
