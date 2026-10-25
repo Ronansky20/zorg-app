@@ -29,7 +29,7 @@ export function Home({ me, onLogout, logoutError }) {
   }
 
   return (
-    <AppLayout me={me} active={view.page} query={query} onQueryChange={search}
+    <AppLayout me={me} active={view.focus === "edit" ? "edit" : view.page} query={query} onQueryChange={search}
       onNavigate={navigate} onLogout={onLogout} logoutError={logoutError}>
       {view.page === "dashboard" ? (
         <Dashboard me={me} focusRequest={view} query={query} onQueryChange={setQuery}

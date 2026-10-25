@@ -30,6 +30,7 @@ export function Dashboard({ me, focusRequest, query, onQueryChange, lastVisited,
   const patientsRef = useRef(null)
   const filterRef = useRef(null)
   const loaded = patients !== null
+  const picking = focusRequest?.focus === "edit"
 
   useEffect(() => {
     getPatients().then(setPatients).catch((e) => setLoadError(e.message))
@@ -37,8 +38,8 @@ export function Dashboard({ me, focusRequest, query, onQueryChange, lastVisited,
 
   useEffect(() => {
     const focus = focusRequest?.focus
-    if (focus === "my-patients" || focus === "edit") patientsRef.current?.scrollIntoView({ behavior: "smooth" })
-    if (focus === "search") filterRef.current?.focus()
+    if (focus === "my-patients") patientsRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (focus === "search" || focus === "edit") filterRef.current?.focus()
   }, [focusRequest, loaded])
 
   function retry() {
@@ -60,8 +61,12 @@ export function Dashboard({ me, focusRequest, query, onQueryChange, lastVisited,
       <section ref={patientsRef} aria-labelledby="patients-title"
         className="flex flex-col gap-1 rounded-xl border bg-card p-6 md:p-14">
         <div className="flex flex-col gap-2">
-          <h1 id="patients-title" className="font-heading text-3xl font-semibold leading-9">Your patients</h1>
-          <p className="text-base text-muted-foreground">{dashboard.description}</p>
+          <h1 id="patients-title" className="font-heading text-3xl font-semibold leading-9">
+            {picking ? "Edit a patient" : "Your patients"}
+          </h1>
+          <p className="text-base text-muted-foreground">
+            {picking ? "Choose the patient you want to edit" : dashboard.description}
+          </p>
         </div>
         {loadError ? (
           <div className="flex flex-col items-start gap-4 py-4">
