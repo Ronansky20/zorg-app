@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getMe, logout, watchSession } from '@/api'
-import { Button } from '@/components/ui/button'
-import { FieldError } from '@/components/ui/field'
-import { DoctorDashboard } from '@/pages/doctor-dashboard'
+import { Dashboard } from '@/pages/dashboard'
 import { LoginPage } from '@/pages/login-page'
 
 function App() {
@@ -47,17 +45,7 @@ function App() {
 
   if (me === undefined) return null
   if (me === null) return <LoginPage notice={notice} onLogin={handleLogin} />
-  if (me.user.profession === 'DOCTOR') {
-    return <DoctorDashboard me={me} onLogout={handleLogout} logoutError={logoutError} />
-  }
-
-  return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-4">
-      <h1 className="font-heading text-2xl font-semibold">Welcome, {me.user.name}</h1>
-      <Button variant="outline" onPress={handleLogout}>Log out</Button>
-      {logoutError && <FieldError>{logoutError}</FieldError>}
-    </main>
-  )
+  return <Dashboard me={me} onLogout={handleLogout} logoutError={logoutError} />
 }
 
 export default App

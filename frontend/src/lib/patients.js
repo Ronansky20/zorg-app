@@ -13,7 +13,34 @@ export const PATIENT_COLUMNS = [
     { key: "medications", label: "Medication", format: (list) => list.map((m) => m.name).join(", ") || "None" },
 ]
 
-export const DEFAULT_COLUMNS = ["firstName", "lastName", "birthDate"]
+const BASE_COLUMNS = ["firstName", "lastName", "birthDate"]
+
+const DASHBOARDS = {
+    DOCTOR: {
+        description: "These are the patients assigned to your care",
+        columns: BASE_COLUMNS,
+        stats: ["incomplete"],
+    },
+    PHARMACIST: {
+        description: "Review the medication of the patients assigned to your care",
+        columns: [...BASE_COLUMNS, "medications"],
+        stats: ["onMedication"],
+    },
+    PHYSIOTHERAPIST: {
+        description: "Track the weight and height of the patients assigned to your care",
+        columns: [...BASE_COLUMNS, "weight", "height"],
+        stats: ["incomplete"],
+    },
+    DENTIST: {
+        description: "Check medication before treating the patients assigned to your care",
+        columns: [...BASE_COLUMNS, "medications"],
+        stats: ["onMedication", "incomplete"],
+    },
+}
+
+export function dashboardFor(profession) {
+    return DASHBOARDS[profession] ?? DASHBOARDS.DOCTOR
+}
 
 export function formatField(column, value) {
     if (value === undefined || value === null || value === "") return "—"
@@ -37,6 +64,10 @@ export function isIncomplete(patient, viewableFields) {
             const value = patient[key]
             return value === undefined || value === null || String(value).trim() === "" || value === 0
         })
+}
+
+export function isOnMedication(patient) {
+    return patient.medications?.length > 0
 }
 
 export function professionLabel(profession) {
