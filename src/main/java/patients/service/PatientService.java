@@ -12,10 +12,12 @@ import patients.repository.PatientRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class PatientService {
 
@@ -53,8 +55,7 @@ public class PatientService {
 
     public Patient add(User user, Patient patient) {
         requirePermission(user, Action.ADD_PATIENT);
-        validate(patient);
-        validateMedications(patient.medications());
+        validate(patient, EnumSet.allOf(PatientField.class));
         Map<String, Boolean> careTeam = new LinkedHashMap<>(patient.careTeam());
         careTeam.put(user.id(), true);
         Patient toSave = patient.withCareTeam(careTeam);
@@ -73,19 +74,19 @@ public class PatientService {
             throw new SecurityException("You are not on this patient's care team");
         }
 
+        Set<PatientField> changed = EnumSet.noneOf(PatientField.class);
         for (PatientField field : PatientField.values()) {
-            boolean changed = !Objects.equals(field.valueOf(existing), field.valueOf(updatedPatient));
-            if (changed && !FieldPermissions.canEdit(user.profession(), field)) {
-                throw new SecurityException("You do not have the permission to edit " + field.label);
+            if (!Objects.equals(field.valueOf(existing), field.valueOf(updatedPatient))) {
+                if (!FieldPermissions.canEdit(user.profession(), field)) {
+                    throw new SecurityException("You do not have the permission to edit " + field.label);
+                }
+                changed.add(field);
             }
         }
         if (!Objects.equals(existing.careTeam(), updatedPatient.careTeam())) {
             throw new SecurityException("The care team can't be edited");
         }
-        validate(updatedPatient);
-        if (!Objects.equals(existing.medications(), updatedPatient.medications())) {
-            validateMedications(updatedPatient.medications());
-        }
+        validate(updatedPatient, changed);
 
         repository.save(updatedPatient);
         return updatedPatient;
@@ -100,24 +101,29 @@ public class PatientService {
         }
     }
 
-    private void validate(Patient patient) {
-        if (patient.firstName() == null || patient.firstName().isBlank()) {
+    private void validate(Patient patient, Set<PatientField> fields) {
+        if (fields.contains(PatientField.FIRST_NAME) && (patient.firstName() == null || patient.firstName().isBlank())) {
             throw new IllegalArgumentException("First name can't be empty");
         }
-        if (patient.lastName() == null || patient.lastName().isBlank()) {
+        if (fields.contains(PatientField.LAST_NAME) && (patient.lastName() == null || patient.lastName().isBlank())) {
             throw new IllegalArgumentException("Last name can't be empty");
         }
-        if (patient.birthDate() == null) {
-            throw new IllegalArgumentException("Date of birth is required");
+        if (fields.contains(PatientField.DATE_OF_BIRTH)) {
+            if (patient.birthDate() == null) {
+                throw new IllegalArgumentException("Date of birth is required");
+            }
+            if (patient.birthDate().isAfter(LocalDate.now(clock))) {
+                throw new IllegalArgumentException("A date of birth can't be in the future");
+            }
         }
-        if (patient.birthDate().isAfter(LocalDate.now(clock))) {
-            throw new IllegalArgumentException("A date of birth can't be in the future");
-        }
-        if (!(patient.weight() > 0)) {
+        if (fields.contains(PatientField.WEIGHT) && !(patient.weight() > 0)) {
             throw new IllegalArgumentException("Weight must be greater than 0");
         }
-        if (!(patient.height() > 0)) {
+        if (fields.contains(PatientField.HEIGHT) && !(patient.height() > 0)) {
             throw new IllegalArgumentException("Height must be greater than 0");
+        }
+        if (fields.contains(PatientField.MEDICATION)) {
+            validateMedications(patient.medications());
         }
     }
 

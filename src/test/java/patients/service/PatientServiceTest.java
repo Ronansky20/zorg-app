@@ -339,6 +339,25 @@ class PatientServiceTest {
     }
 
     @Test
+    void incompleteFieldsDoNotBlockOtherEdits() {
+        Patient incomplete = patient("John").withWeight(0).withHeight(0);
+        startWith(incomplete);
+
+        service.update(user(Profession.DENTIST), incomplete.withFirstName("Johnny"));
+
+        assertEquals("Johnny", service.get(DOCTOR, "john").firstName());
+    }
+
+    @Test
+    void changingAFieldToAnInvalidValueIsStillRejected() {
+        Patient incomplete = patient("John").withWeight(0);
+        startWith(incomplete);
+
+        assertThrows(IllegalArgumentException.class, () -> service.update(DOCTOR, incomplete.withHeight(0)));
+        assertEquals(0, repository.saveCalls);
+    }
+
+    @Test
     void medicationUpdateIsRejectedForProfessionsOtherThanDoctor() {
         startWith(patient("John"));
         Patient updated = patient("John").withMedications(List.of(new Medication("Paracetamol", "500 mg", "3x daily")));
