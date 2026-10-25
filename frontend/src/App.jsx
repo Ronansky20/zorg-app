@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getMe, logout, watchSession } from '@/api'
-import { Dashboard } from '@/pages/dashboard'
+import { Home } from '@/pages/home'
 import { LoginPage } from '@/pages/login-page'
 
 function App() {
@@ -45,7 +45,7 @@ function App() {
 
   if (me === undefined) return null
   if (me === null) return <LoginPage notice={notice} onLogin={handleLogin} />
-  return <Dashboard me={me} onLogout={handleLogout} logoutError={logoutError} />
+  return <Home me={me} onLogout={handleLogout} logoutError={logoutError} />
 }
 
 export default App

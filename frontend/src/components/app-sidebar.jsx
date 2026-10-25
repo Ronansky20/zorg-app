@@ -30,8 +30,8 @@ const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "my-patients", label: "My Patients" },
   { id: "search", label: "Search patients" },
-  { id: "edit", label: "Edit Patients", action: "EDIT_PATIENT", comingSoon: true },
-  { id: "add", label: "Add Patients", action: "ADD_PATIENT", comingSoon: true },
+  { id: "edit", label: "Edit Patients", action: "EDIT_PATIENT" },
+  { id: "add", label: "Add Patients", action: "ADD_PATIENT" },
 ]
 
 function initials(name) {
@@ -75,7 +75,7 @@ export function AppSidebar({ me, active, query, onQueryChange, onNavigate, onLog
                     {items.map((item) => (
                       <SidebarMenuSubItem key={item.id}>
                         <SidebarMenuSubButton className="w-full" isActive={active === item.id}
-                          isDisabled={item.comingSoon} onPress={() => onNavigate(item.id)}>
+                          onPress={() => onNavigate(item.id)}>
                           <span>{item.label}</span>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>

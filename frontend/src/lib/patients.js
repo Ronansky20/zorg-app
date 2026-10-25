@@ -70,6 +70,38 @@ export function isOnMedication(patient) {
     return patient.medications?.length > 0
 }
 
+export function today() {
+    return new Date().toLocaleDateString("en-CA")
+}
+
+export function validatePatient(values, canEdit) {
+    const checks = {
+        firstName: () => !values.firstName.trim() && "First name can't be empty",
+        lastName: () => !values.lastName.trim() && "Last name can't be empty",
+        birthDate: () => (!values.birthDate ? "Date of birth is required"
+            : values.birthDate > today() && "A date of birth can't be in the future"),
+        weight: () => !(Number(values.weight) > 0) && "Weight must be greater than 0",
+        height: () => !(Number(values.height) > 0) && "Height must be greater than 0",
+    }
+    return Object.fromEntries(Object.entries(checks)
+        .filter(([key]) => canEdit(key))
+        .map(([key, check]) => [key, check()])
+        .filter(([, message]) => message))
+}
+
+export function validateMedication({ name, dosage, frequency }) {
+    const errors = {}
+    if (!name) errors.name = "Pick a medication"
+    if (!dosage.trim()) errors.dosage = "Dosage can't be empty"
+    if (!frequency.trim()) errors.frequency = "Frequency can't be empty"
+    return errors
+}
+
+export function medicationTypeLabel(config, name) {
+    const type = config?.medications.find((medication) => medication.name === name)?.type
+    return config?.medicationTypes.find((option) => option.id === type)?.label
+}
+
 export function professionLabel(profession) {
     return profession.charAt(0) + profession.slice(1).toLowerCase()
 }

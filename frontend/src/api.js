@@ -33,5 +33,7 @@ export const login = (credentials) => request('/auth/login', { method: 'POST', b
 export const logout = () => request('/auth/logout', { method: 'POST' })
 
 export const getPatients = () => request('/patients')
+export const addPatient = (patient) => request('/patients', { method: 'POST', body: patient })
+export const updatePatient = (id, changes) => request(`/patients/${id}`, { method: 'PATCH', body: changes })
 export const getAccounts = () => request('/auth/accounts')
 export const getUsers = () => request('/users')

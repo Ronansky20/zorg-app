@@ -129,6 +129,12 @@ public class PatientService {
             if (!MedicationCatalog.contains(medication.name())) {
                 throw new IllegalArgumentException("Unknown medication: " + medication.name());
             }
+            if (medication.dosage() == null || medication.dosage().isBlank()) {
+                throw new IllegalArgumentException("The dosage of " + medication.name() + " can't be empty");
+            }
+            if (medication.frequency() == null || medication.frequency().isBlank()) {
+                throw new IllegalArgumentException("The frequency of " + medication.name() + " can't be empty");
+            }
         }
     }
 }
