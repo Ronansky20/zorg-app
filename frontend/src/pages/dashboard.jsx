@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react"
 import { getPatients } from "@/api"
 import { dashboardFor, fullName, isIncomplete, isOnMedication } from "@/lib/patients"
-import { AppSidebar } from "@/components/app-sidebar"
 import { PatientsTable } from "@/components/patients-table"
 import { Button } from "@/components/ui/button"
 import { FieldError } from "@/components/ui/field"
 import { Item, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 
 function StatItem({ title, value }) {
   return (
@@ -24,64 +22,58 @@ const STATS = {
   onMedication: { title: "On medication", matches: isOnMedication },
 }
 
-export function Dashboard({ me, onLogout, logoutError }) {
+export function Dashboard({ me, focusRequest, query, onQueryChange, lastVisited, onOpen }) {
   const dashboard = dashboardFor(me.user.profession)
   const [patients, setPatients] = useState(null)
   const [loadError, setLoadError] = useState(null)
   const [attempt, setAttempt] = useState(0)
-  const [query, setQuery] = useState("")
-  const [lastVisited, setLastVisited] = useState(null)
   const patientsRef = useRef(null)
   const filterRef = useRef(null)
+  const loaded = patients !== null
 
   useEffect(() => {
     getPatients().then(setPatients).catch((e) => setLoadError(e.message))
   }, [attempt])
+
+  useEffect(() => {
+    const focus = focusRequest?.focus
+    if (focus === "my-patients" || focus === "edit") patientsRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (focus === "search") filterRef.current?.focus()
+  }, [focusRequest, loaded])
 
   function retry() {
     setLoadError(null)
     setAttempt((n) => n + 1)
   }
 
-  function handleNavigate(id) {
-    if (id === "my-patients") patientsRef.current?.scrollIntoView({ behavior: "smooth" })
-    if (id === "search") filterRef.current?.focus()
-  }
-
   return (
-    <SidebarProvider>
-      <AppSidebar me={me} active="dashboard" query={query} onQueryChange={setQuery}
-        onNavigate={handleNavigate} onLogout={onLogout} logoutError={logoutError} />
-      <SidebarInset className="gap-8 bg-muted p-4 md:p-9">
-        <SidebarTrigger className="md:hidden" />
+    <>
+      <div role="list" aria-label="Overview" className="flex flex-wrap gap-6">
+        <StatItem title="Last Visited Patient" value={lastVisited ? fullName(lastVisited) : "—"} />
+        <StatItem title="My patients" value={patients?.length ?? "—"} />
+        {dashboard.stats.map((key) => (
+          <StatItem key={key} title={STATS[key].title}
+            value={patients?.filter((patient) => STATS[key].matches(patient, me)).length ?? "—"} />
+        ))}
+      </div>
 
-        <div role="list" aria-label="Overview" className="flex flex-wrap gap-6">
-          <StatItem title="Last Visited Patient" value={lastVisited ? fullName(lastVisited) : "—"} />
-          <StatItem title="My patients" value={patients?.length ?? "—"} />
-          {dashboard.stats.map((key) => (
-            <StatItem key={key} title={STATS[key].title}
-              value={patients?.filter((patient) => STATS[key].matches(patient, me)).length ?? "—"} />
-          ))}
+      <section ref={patientsRef} aria-labelledby="patients-title"
+        className="flex flex-col gap-1 rounded-xl border bg-card p-6 md:p-14">
+        <div className="flex flex-col gap-2">
+          <h1 id="patients-title" className="font-heading text-3xl font-semibold leading-9">Your patients</h1>
+          <p className="text-base text-muted-foreground">{dashboard.description}</p>
         </div>
-
-        <section ref={patientsRef} aria-labelledby="patients-title"
-          className="flex flex-col gap-1 rounded-xl border bg-card p-6 md:p-14">
-          <div className="flex flex-col gap-2">
-            <h1 id="patients-title" className="font-heading text-3xl font-semibold leading-9">Your patients</h1>
-            <p className="text-base text-muted-foreground">{dashboard.description}</p>
+        {loadError ? (
+          <div className="flex flex-col items-start gap-4 py-4">
+            <FieldError>{loadError}</FieldError>
+            <Button variant="outline" onPress={retry}>Try again</Button>
           </div>
-          {loadError ? (
-            <div className="flex flex-col items-start gap-4 py-4">
-              <FieldError>{loadError}</FieldError>
-              <Button variant="outline" onPress={retry}>Try again</Button>
-            </div>
-          ) : patients && (
-            <PatientsTable patients={patients} viewableFields={me.viewableFields}
-              defaultColumns={dashboard.columns} query={query}
-              onQueryChange={setQuery} onOpen={setLastVisited} filterRef={filterRef} />
-          )}
-        </section>
-      </SidebarInset>
-    </SidebarProvider>
+        ) : patients && (
+          <PatientsTable patients={patients} viewableFields={me.viewableFields}
+            defaultColumns={dashboard.columns} query={query}
+            onQueryChange={onQueryChange} onOpen={onOpen} filterRef={filterRef} />
+        )}
+      </section>
+    </>
   )
 }

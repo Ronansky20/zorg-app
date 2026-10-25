@@ -174,7 +174,9 @@ class PatientServiceTest {
                 patient("John").withBirthDate(LocalDate.of(2026, 1, 2)),
                 patient("John").withMedications(List.of(new Medication(" ", "500 mg", "3x daily"))),
                 patient("John").withMedications(List.of(new Medication(null, "500 mg", "3x daily"))),
-                patient("John").withMedications(List.of(new Medication("Aspirin", "80 mg", "1x daily"))));
+                patient("John").withMedications(List.of(new Medication("Aspirin", "80 mg", "1x daily"))),
+                patient("John").withMedications(List.of(new Medication("Paracetamol", " ", "3x daily"))),
+                patient("John").withMedications(List.of(new Medication("Paracetamol", "500 mg", null))));
 
         for (Patient patient : invalid) {
             assertThrows(IllegalArgumentException.class, () -> service.add(DOCTOR, patient), patient.toString());
