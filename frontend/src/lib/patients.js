@@ -3,13 +3,6 @@ export function formatDate(isoDate) {
     return `${day}-${month}-${year}`
 }
 
-export function age(isoDate) {
-    const [year, month, day] = isoDate.split("-").map(Number)
-    const now = new Date()
-    const hadBirthday = now.getMonth() + 1 > month || (now.getMonth() + 1 === month && now.getDate() >= day)
-    return now.getFullYear() - year - (hadBirthday ? 0 : 1)
-}
-
 export const PATIENT_COLUMNS = [
     { key: "firstName" },
     { key: "lastName", sortable: true },

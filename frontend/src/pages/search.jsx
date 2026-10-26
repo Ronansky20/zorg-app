@@ -3,7 +3,7 @@ import { GridList, GridListItem } from "react-aria-components"
 import { RiArrowRightSLine, RiSearchLine, RiUserLine, RiUserSearchLine } from "@remixicon/react"
 import { getPatients } from "@/api"
 import { useConfig } from "@/hooks/use-config"
-import { PATIENT_COLUMNS, age, canViewColumn, columnLabel, fieldLabel, formatDate, formatField, fullName, queryWords, searchFieldsFor, searchPatients } from "@/lib/patients"
+import { PATIENT_COLUMNS, canViewColumn, columnLabel, fieldLabel, formatDate, formatField, fullName, queryWords, searchFieldsFor, searchPatients } from "@/lib/patients"
 import { CareTeamBadges } from "@/components/care-team-badges"
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb"
@@ -75,7 +75,7 @@ function PatientPreview({ me, patient, onOpen }) {
         <h2 id="preview-title" className="text-base font-semibold">{fullName(patient)}</h2>
         {canView("birthDate") && patient.birthDate && (
           <p className="text-sm text-muted-foreground">
-            Born {formatDate(patient.birthDate)} · {age(patient.birthDate)} years old
+            Born {formatDate(patient.birthDate)}{patient.age !== undefined && ` · ${patient.age} years old`}
           </p>
         )}
       </div>

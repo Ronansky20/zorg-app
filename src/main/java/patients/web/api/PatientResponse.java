@@ -15,8 +15,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record PatientResponse(String id, String firstName, String lastName, LocalDate birthDate, Double weight,
-                              Double height, Double bmi, String bmiCategory, String address,
+public record PatientResponse(String id, String firstName, String lastName, LocalDate birthDate, Integer age,
+                              Double weight, Double height, Double bmi, String bmiCategory, String address,
                               List<Medication> medications, List<CareTeamMember> careTeam) {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -29,6 +29,7 @@ public record PatientResponse(String id, String firstName, String lastName, Loca
                 viewable.contains(PatientField.FIRST_NAME) ? patient.firstName() : null,
                 viewable.contains(PatientField.LAST_NAME) ? patient.lastName() : null,
                 viewable.contains(PatientField.DATE_OF_BIRTH) ? patient.birthDate() : null,
+                viewable.contains(PatientField.DATE_OF_BIRTH) && patient.birthDate() != null ? patient.age() : null,
                 viewable.contains(PatientField.WEIGHT) ? patient.weight() : null,
                 viewable.contains(PatientField.HEIGHT) ? patient.height() : null,
                 bmi,
