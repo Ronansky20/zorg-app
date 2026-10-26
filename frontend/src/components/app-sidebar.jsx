@@ -6,7 +6,8 @@ import {
   RiSearchLine,
   RiTerminalLine,
 } from "@remixicon/react"
-import { professionLabel } from "@/lib/patients"
+import { useConfig } from "@/hooks/use-config"
+import { actionLabel, professionLabel } from "@/lib/patients"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -30,8 +31,8 @@ import {
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "search", label: "Search patients" },
-  { id: "edit", label: "Edit Patients", action: "EDIT_PATIENT" },
-  { id: "add", label: "Add Patients", action: "ADD_PATIENT" },
+  { id: "edit", action: "EDIT_PATIENT" },
+  { id: "add", action: "ADD_PATIENT" },
 ]
 
 function initials(name) {
@@ -41,6 +42,7 @@ function initials(name) {
 export function AppSidebar({ me, active, query, onQueryChange, onNavigate, onLogout, logoutError }) {
   const items = NAV_ITEMS.filter((item) => !item.action || me.actions.includes(item.action))
   const { setOpenMobile } = useSidebar()
+  const config = useConfig()
 
   function navigate(id) {
     setOpenMobile(false)
@@ -82,7 +84,7 @@ export function AppSidebar({ me, active, query, onQueryChange, onNavigate, onLog
                       <SidebarMenuSubItem key={item.id}>
                         <SidebarMenuSubButton className="w-full" isActive={active === item.id}
                           onPress={() => navigate(item.id)}>
-                          <span>{item.label}</span>
+                          <span>{item.label ?? actionLabel(config, item.action)}</span>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                     ))}
@@ -106,7 +108,7 @@ export function AppSidebar({ me, active, query, onQueryChange, onNavigate, onLog
                 </Avatar>
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm font-medium">{me.user.name}</span>
-                  <span className="truncate text-xs">{professionLabel(me.user.profession)}</span>
+                  <span className="truncate text-xs">{professionLabel(config, me.user.profession)}</span>
                 </div>
                 <RiExpandUpDownLine />
               </SidebarMenuButton>

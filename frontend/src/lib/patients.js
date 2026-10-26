@@ -11,14 +11,34 @@ export function age(isoDate) {
 }
 
 export const PATIENT_COLUMNS = [
-    { key: "firstName", label: "First name" },
-    { key: "lastName", label: "Last Name", sortable: true },
-    { key: "birthDate", label: "Date of Birth", format: formatDate },
-    { key: "weight", label: "Weight", format: (kg) => `${kg} kg` },
-    { key: "height", label: "Height", format: (m) => `${m} m` },
-    { key: "address", label: "Address" },
-    { key: "medications", label: "Medication", format: (list) => list.map((m) => m.name).join(", ") || "None" },
+    { key: "firstName" },
+    { key: "lastName", sortable: true },
+    { key: "birthDate", format: formatDate },
+    { key: "weight", format: (kg) => `${kg} kg` },
+    { key: "height", format: (m) => `${m} m` },
+    { key: "address" },
+    { key: "medications", format: (list) => list.map((m) => m.name).join(", ") || "None" },
 ]
+
+function labelFrom(options, id) {
+    return options?.find((option) => option.id === id)?.label ?? id
+}
+
+export function fieldLabel(config, key) {
+    return labelFrom(config?.fields, key)
+}
+
+export function columnLabel(config, column) {
+    return column.label ?? fieldLabel(config, column.key)
+}
+
+export function actionLabel(config, action) {
+    return labelFrom(config?.actions, action)
+}
+
+export function professionLabel(config, profession) {
+    return labelFrom(config?.professions, profession)
+}
 
 const BASE_COLUMNS = ["firstName", "lastName", "birthDate"]
 
@@ -73,13 +93,15 @@ export function matchesQuery(patient, query) {
 
 const SEARCH_FIELDS = [
     { key: "name", label: "Name", text: fullName },
-    { key: "birthDate", label: "Date of birth", text: (patient) => (patient.birthDate ? formatDate(patient.birthDate) : "") },
-    { key: "address", label: "Address", text: (patient) => patient.address ?? "" },
-    { key: "medications", label: "Medication", text: (patient) => (patient.medications ?? []).map((m) => m.name).join(", ") },
+    { key: "birthDate", text: (patient) => (patient.birthDate ? formatDate(patient.birthDate) : "") },
+    { key: "address", text: (patient) => patient.address ?? "" },
+    { key: "medications", text: (patient) => (patient.medications ?? []).map((m) => m.name).join(", ") },
 ]
 
-export function searchFieldsFor(viewableFields) {
-    return SEARCH_FIELDS.filter((field) => field.key === "name" || viewableFields.includes(field.key))
+export function searchFieldsFor(config, viewableFields) {
+    return SEARCH_FIELDS
+        .filter((field) => field.key === "name" || viewableFields.includes(field.key))
+        .map((field) => ({ ...field, label: columnLabel(config, field) }))
 }
 
 export function searchPatients(patients, query, fields) {
@@ -136,8 +158,4 @@ export function validateMedication({ name, dosage, frequency }) {
 export function medicationTypeLabel(config, name) {
     const type = config?.medications.find((medication) => medication.name === name)?.type
     return config?.medicationTypes.find((option) => option.id === type)?.label
-}
-
-export function professionLabel(profession) {
-    return profession.charAt(0) + profession.slice(1).toLowerCase()
 }

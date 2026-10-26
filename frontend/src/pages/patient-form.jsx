@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { RiAddLine } from "@remixicon/react"
-import { addPatient, getConfig, getUsers, updatePatient } from "@/api"
-import { fullName, professionLabel, today, validatePatient } from "@/lib/patients"
+import { addPatient, getUsers, updatePatient } from "@/api"
+import { useConfig } from "@/hooks/use-config"
+import { actionLabel, fieldLabel, fullName, professionLabel, today, validatePatient } from "@/lib/patients"
 import { CareTeamBadges } from "@/components/care-team-badges"
 import { FormField } from "@/components/form-field"
 import { MedicationDialog } from "@/components/medication-dialog"
@@ -54,7 +55,7 @@ export function PatientForm({ me, patient, onDone }) {
   const [errors, setErrors] = useState({})
   const [saveError, setSaveError] = useState(null)
   const [pending, setPending] = useState(false)
-  const [config, setConfig] = useState(null)
+  const config = useConfig()
   const [users, setUsers] = useState([])
   const [loadError, setLoadError] = useState(null)
   const [dialog, setDialog] = useState(null)
@@ -62,9 +63,9 @@ export function PatientForm({ me, patient, onDone }) {
   const canView = (key) => me.viewableFields.includes(key)
   const canEdit = (key) => isNew || me.editableFields.includes(key)
   const name = isNew ? "the new patient" : fullName(patient)
+  const title = actionLabel(config, isNew ? "ADD_PATIENT" : "EDIT_PATIENT")
 
   useEffect(() => {
-    getConfig().then(setConfig).catch((e) => setLoadError(e.message))
     if (isNew) getUsers().then(setUsers).catch((e) => setLoadError(e.message))
   }, [isNew])
 
@@ -138,7 +139,7 @@ export function PatientForm({ me, patient, onDone }) {
             <BreadcrumbLink onPress={() => onDone()}>Dashboard</BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbItem>
-            <BreadcrumbPage>{isNew ? "Add patient" : "Edit patient"}</BreadcrumbPage>
+            <BreadcrumbPage>{title}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -147,7 +148,7 @@ export function PatientForm({ me, patient, onDone }) {
         className="flex flex-col gap-8 rounded-xl border bg-card p-6 md:p-14">
         <div className="flex flex-col gap-2">
           <h1 id="patient-form-title" className="font-heading text-3xl font-semibold leading-9">
-            {isNew ? "Add patient" : "Edit patient"}
+            {title}
           </h1>
           <p className="text-base text-muted-foreground">
             {isNew ? "Fill in the details of the new patient." : `Update the details of ${name}.`} Fields marked with * are required.
@@ -156,23 +157,23 @@ export function PatientForm({ me, patient, onDone }) {
 
         <FormSection title="Personal details" description="Who the patient is and where they live.">
           <div className="grid gap-6 sm:grid-cols-2">
-            <FormField id="firstName" label="First name" required disabled={!canEdit("firstName")} error={errors.firstName}>
+            <FormField id="firstName" label={fieldLabel(config, "firstName")} required disabled={!canEdit("firstName")} error={errors.firstName}>
               <Input placeholder="e.g. John" autoComplete="off" {...input("firstName")} />
             </FormField>
-            <FormField id="lastName" label="Last name" required disabled={!canEdit("lastName")} error={errors.lastName}>
+            <FormField id="lastName" label={fieldLabel(config, "lastName")} required disabled={!canEdit("lastName")} error={errors.lastName}>
               <Input placeholder="e.g. Doe" autoComplete="off" {...input("lastName")} />
             </FormField>
           </div>
           {canView("birthDate") && (
             <div className="grid gap-6 sm:grid-cols-2">
-              <FormField id="birthDate" label="Date of birth" required disabled={!canEdit("birthDate")}
+              <FormField id="birthDate" label={fieldLabel(config, "birthDate")} required disabled={!canEdit("birthDate")}
                 error={errors.birthDate} description="Can't be in the future">
                 <Input type="date" max={today()} {...input("birthDate")} />
               </FormField>
             </div>
           )}
           {canView("address") && (
-            <FormField id="address" label="Address" disabled={!canEdit("address")}>
+            <FormField id="address" label={fieldLabel(config, "address")} disabled={!canEdit("address")}>
               <Input placeholder="Street, house number, postcode and city" autoComplete="off" {...input("address")} />
             </FormField>
           )}
@@ -184,13 +185,13 @@ export function PatientForm({ me, patient, onDone }) {
             <FormSection title="Measurements" description="Used to calculate the BMI.">
               <div className="grid gap-6 sm:grid-cols-2">
                 {canView("weight") && (
-                  <FormField id="weight" label="Weight" required disabled={!canEdit("weight")}
+                  <FormField id="weight" label={fieldLabel(config, "weight")} required disabled={!canEdit("weight")}
                     error={errors.weight} description="In kilograms, greater than 0">
                     <UnitInput unit="kg" step="0.1" placeholder="0.0" {...input("weight")} />
                   </FormField>
                 )}
                 {canView("height") && (
-                  <FormField id="height" label="Height" required disabled={!canEdit("height")}
+                  <FormField id="height" label={fieldLabel(config, "height")} required disabled={!canEdit("height")}
                     error={errors.height} description="In metres, greater than 0">
                     <UnitInput unit="m" step="0.01" placeholder="0.00" {...input("height")} />
                   </FormField>
@@ -212,7 +213,7 @@ export function PatientForm({ me, patient, onDone }) {
                       isDisabled={isMe} onChange={(selected) => toggleMember(user.id, selected)} />
                     <FieldContent>
                       <FieldTitle id={`member-${user.id}`}>{user.name}{isMe && " (you)"}</FieldTitle>
-                      <FieldDescription>{professionLabel(user.profession)}</FieldDescription>
+                      <FieldDescription>{professionLabel(config, user.profession)}</FieldDescription>
                     </FieldContent>
                   </Field>
                 )
@@ -247,7 +248,7 @@ export function PatientForm({ me, patient, onDone }) {
         <div className="flex justify-end gap-2">
           <Button variant="outline" onPress={() => onDone()}>Cancel</Button>
           <Button type="submit" isDisabled={pending}>
-            {pending ? "Saving…" : isNew ? "Add patient" : "Save changes"}
+            {pending ? "Saving…" : isNew ? title : "Save changes"}
           </Button>
         </div>
       </form>

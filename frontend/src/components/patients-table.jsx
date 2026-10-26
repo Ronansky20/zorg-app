@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react"
 import { RiArrowDownSLine } from "@remixicon/react"
 import sortIcon from "@/assets/arrow-down-up.svg"
-import { PATIENT_COLUMNS, formatField, matchesQuery } from "@/lib/patients"
+import { useConfig } from "@/hooks/use-config"
+import { PATIENT_COLUMNS, columnLabel, formatField, matchesQuery } from "@/lib/patients"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -21,6 +22,7 @@ function pageWindow(page, pageCount) {
 }
 
 export function PatientsTable({ patients, viewableFields, defaultColumns, query, onQueryChange, onOpen, filterRef }) {
+  const config = useConfig()
   const viewable = PATIENT_COLUMNS.filter((column) => viewableFields.includes(column.key))
   const [visible, setVisible] = useState(() => new Set(defaultColumns.filter((key) => viewableFields.includes(key))))
   const [sort, setSort] = useState({ column: "lastName", direction: "ascending" })
@@ -52,7 +54,7 @@ export function PatientsTable({ patients, viewableFields, defaultColumns, query,
           </Button>
           <DropdownMenu placement="bottom end" className="w-44" items={viewable} selectionMode="multiple"
             selectedKeys={visible} onSelectionChange={setVisible} disallowEmptySelection>
-            {(column) => <DropdownMenuItem id={column.key}>{column.label}</DropdownMenuItem>}
+            {(column) => <DropdownMenuItem id={column.key}>{columnLabel(config, column)}</DropdownMenuItem>}
           </DropdownMenu>
         </DropdownMenuTrigger>
       </div>
@@ -66,10 +68,10 @@ export function PatientsTable({ patients, viewableFields, defaultColumns, query,
                 className={column.sortable ? "px-0 outline-none" : undefined}>
                 {column.sortable ? (
                   <span className="inline-flex h-8 items-center gap-1 rounded-lg px-2.5 hover:bg-muted">
-                    {column.label}
+                    {columnLabel(config, column)}
                     <img src={sortIcon} alt="" width="16" height="16" />
                   </span>
-                ) : column.label}
+                ) : columnLabel(config, column)}
               </TableHead>
             )}
           </TableHeader>
