@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
-import { getMe, logout, watchSession } from '@/api'
+import { getConfig, getMe, logout, watchSession } from '@/api'
+import { ConfigContext } from '@/hooks/use-config'
 import { Home } from '@/pages/home'
 import { LoginPage } from '@/pages/login-page'
 
 function App() {
   const [me, setMe] = useState(undefined)
+  const [config, setConfig] = useState(undefined)
   const [logoutError, setLogoutError] = useState(null)
   const [notice, setNotice] = useState(null)
 
   useEffect(() => {
     getMe().then(setMe).catch(() => setMe(null))
+    getConfig().then(setConfig).catch(() => setConfig(null))
   }, [])
 
   useEffect(() => {
@@ -43,9 +46,13 @@ function App() {
     logout().then(() => setMe(null)).catch((e) => setLogoutError(e.message))
   }
 
-  if (me === undefined) return null
+  if (me === undefined || config === undefined) return null
   if (me === null) return <LoginPage notice={notice} onLogin={handleLogin} />
-  return <Home me={me} onLogout={handleLogout} logoutError={logoutError} />
+  return (
+    <ConfigContext value={config}>
+      <Home me={me} onLogout={handleLogout} logoutError={logoutError} />
+    </ConfigContext>
+  )
 }
 
 export default App

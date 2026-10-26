@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react"
 import { GridList, GridListItem } from "react-aria-components"
 import { RiArrowRightSLine, RiSearchLine, RiUserLine, RiUserSearchLine } from "@remixicon/react"
 import { getPatients } from "@/api"
-import { PATIENT_COLUMNS, age, formatDate, formatField, fullName, queryWords, searchFieldsFor, searchPatients } from "@/lib/patients"
+import { useConfig } from "@/hooks/use-config"
+import { PATIENT_COLUMNS, age, columnLabel, fieldLabel, formatDate, formatField, fullName, queryWords, searchFieldsFor, searchPatients } from "@/lib/patients"
 import { CareTeamBadges } from "@/components/care-team-badges"
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb"
@@ -65,6 +66,7 @@ function ResultRow({ patient, field, fields, words }) {
 }
 
 function PatientPreview({ me, patient, onOpen }) {
+  const config = useConfig()
   const canView = (key) => me.viewableFields.includes(key)
 
   return (
@@ -81,13 +83,13 @@ function PatientPreview({ me, patient, onOpen }) {
       <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-y-3">
         {PREVIEW_COLUMNS.filter((column) => canView(column.key)).map((column) => (
           <div key={column.key} className="contents">
-            <dt className="text-muted-foreground">{column.label}</dt>
+            <dt className="text-muted-foreground">{columnLabel(config, column)}</dt>
             <dd className="mb-2 font-medium sm:mb-0">{formatField(column, patient[column.key])}</dd>
           </div>
         ))}
         {canView("medications") && (
           <>
-            <dt className="text-muted-foreground">Medication</dt>
+            <dt className="text-muted-foreground">{fieldLabel(config, "medications")}</dt>
             <dd className="mb-2 sm:mb-0">
               {patient.medications?.length ? (
                 <div className="flex flex-wrap gap-2">
@@ -145,7 +147,8 @@ export function SearchPage({ me, query, onQueryChange, onOpen, onVisit, onBack }
   const [attempt, setAttempt] = useState(0)
   const [scope, setScope] = useState(ALL_FIELDS.key)
   const [selectedId, setSelectedId] = useState(null)
-  const fields = useMemo(() => searchFieldsFor(me.viewableFields), [me.viewableFields])
+  const config = useConfig()
+  const fields = useMemo(() => searchFieldsFor(config, me.viewableFields), [config, me.viewableFields])
   const field = fields.find((f) => f.key === scope) ?? ALL_FIELDS
   const words = queryWords(query)
 
