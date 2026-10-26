@@ -10,6 +10,9 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import patients.testing.InMemoryPatientRepository;
 
+import java.time.LocalDate;
+import java.time.Period;
+
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -54,6 +57,7 @@ class PatientControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", containsString("/api/patients/")))
                 .andExpect(jsonPath("$.birthDate").value("1995-06-15"))
+                .andExpect(jsonPath("$.age").value(Period.between(LocalDate.of(1995, 6, 15), LocalDate.now()).getYears()))
                 .andExpect(jsonPath("$.careTeam[*].id", containsInAnyOrder("devries", "visser", "jansen")))
                 .andExpect(jsonPath("$.careTeam[?(@.id == 'jansen')].name").value("Dr. Max Jansen"));
 
