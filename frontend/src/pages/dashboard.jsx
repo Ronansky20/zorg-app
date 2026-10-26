@@ -27,7 +27,6 @@ export function Dashboard({ me, focusRequest, query, onQueryChange, lastVisited,
   const [patients, setPatients] = useState(null)
   const [loadError, setLoadError] = useState(null)
   const [attempt, setAttempt] = useState(0)
-  const patientsRef = useRef(null)
   const filterRef = useRef(null)
   const loaded = patients !== null
   const picking = focusRequest?.focus === "edit"
@@ -37,10 +36,8 @@ export function Dashboard({ me, focusRequest, query, onQueryChange, lastVisited,
   }, [attempt])
 
   useEffect(() => {
-    const focus = focusRequest?.focus
-    if (focus === "my-patients") patientsRef.current?.scrollIntoView({ behavior: "smooth" })
-    if (focus === "search" || focus === "edit") filterRef.current?.focus()
-  }, [focusRequest, loaded])
+    if (picking) filterRef.current?.focus()
+  }, [picking, focusRequest, loaded])
 
   function retry() {
     setLoadError(null)
@@ -58,7 +55,7 @@ export function Dashboard({ me, focusRequest, query, onQueryChange, lastVisited,
         ))}
       </div>
 
-      <section ref={patientsRef} aria-labelledby="patients-title"
+      <section aria-labelledby="patients-title"
         className="flex flex-col gap-1 rounded-xl border bg-card p-6 md:p-14">
         <div className="flex flex-col gap-2">
           <h1 id="patients-title" className="font-heading text-3xl font-semibold leading-9">
