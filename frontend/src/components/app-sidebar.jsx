@@ -24,11 +24,11 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "my-patients", label: "My Patients" },
   { id: "search", label: "Search patients" },
   { id: "edit", label: "Edit Patients", action: "EDIT_PATIENT" },
   { id: "add", label: "Add Patients", action: "ADD_PATIENT" },
@@ -40,6 +40,12 @@ function initials(name) {
 
 export function AppSidebar({ me, active, query, onQueryChange, onNavigate, onLogout, logoutError }) {
   const items = NAV_ITEMS.filter((item) => !item.action || me.actions.includes(item.action))
+  const { setOpenMobile } = useSidebar()
+
+  function navigate(id) {
+    setOpenMobile(false)
+    onNavigate(id)
+  }
 
   return (
     <Sidebar className="md:border md:border-sidebar-border md:rounded-lg md:overflow-hidden **:data-[slot=sidebar-inner]:bg-card">
@@ -75,7 +81,7 @@ export function AppSidebar({ me, active, query, onQueryChange, onNavigate, onLog
                     {items.map((item) => (
                       <SidebarMenuSubItem key={item.id}>
                         <SidebarMenuSubButton className="w-full" isActive={active === item.id}
-                          onPress={() => onNavigate(item.id)}>
+                          onPress={() => navigate(item.id)}>
                           <span>{item.label}</span>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>

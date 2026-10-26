@@ -1,6 +1,13 @@
-function formatDate(isoDate) {
+export function formatDate(isoDate) {
     const [year, month, day] = isoDate.split("-")
     return `${day}-${month}-${year}`
+}
+
+export function age(isoDate) {
+    const [year, month, day] = isoDate.split("-").map(Number)
+    const now = new Date()
+    const hadBirthday = now.getMonth() + 1 > month || (now.getMonth() + 1 === month && now.getDate() >= day)
+    return now.getFullYear() - year - (hadBirthday ? 0 : 1)
 }
 
 export const PATIENT_COLUMNS = [
@@ -51,10 +58,39 @@ export function fullName(patient) {
     return [patient.firstName, patient.lastName].filter(Boolean).join(" ")
 }
 
+export function queryWords(query) {
+    return query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+}
+
+function containsWords(text, words) {
+    const lower = text.toLowerCase()
+    return words.every((word) => lower.includes(word))
+}
+
 export function matchesQuery(patient, query) {
-    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-    const name = fullName(patient).toLowerCase()
-    return words.every((word) => name.includes(word))
+    return containsWords(fullName(patient), queryWords(query))
+}
+
+const SEARCH_FIELDS = [
+    { key: "name", label: "Name", text: fullName },
+    { key: "birthDate", label: "Date of birth", text: (patient) => (patient.birthDate ? formatDate(patient.birthDate) : "") },
+    { key: "address", label: "Address", text: (patient) => patient.address ?? "" },
+    { key: "medications", label: "Medication", text: (patient) => (patient.medications ?? []).map((m) => m.name).join(", ") },
+]
+
+export function searchFieldsFor(viewableFields) {
+    return SEARCH_FIELDS.filter((field) => field.key === "name" || viewableFields.includes(field.key))
+}
+
+export function searchPatients(patients, query, fields) {
+    const words = queryWords(query)
+    return patients
+        .map((patient) => ({
+            patient,
+            field: words.length ? fields.find((field) => containsWords(field.text(patient), words)) : null,
+        }))
+        .filter((result) => !words.length || result.field)
+        .sort((a, b) => (a.patient.lastName ?? "").localeCompare(b.patient.lastName ?? "", undefined, { sensitivity: "base" }))
 }
 
 export function isIncomplete(patient, viewableFields) {
