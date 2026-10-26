@@ -107,6 +107,17 @@ class PatientControllerTest {
     }
 
     @Test
+    void aCareTeamMemberGetsOnePatient() throws Exception {
+        String id = addJane(mvc);
+
+        mvc.perform(get("/api/patients/" + id).session(login(mvc, "devries")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.firstName").value("Jane"))
+                .andExpect(jsonPath("$.weight").doesNotExist());
+    }
+
+    @Test
     void nonMembersGetNotFound() throws Exception {
         String id = addJane(mvc);
         MockHttpSession hendriks = login(mvc, "hendriks");
