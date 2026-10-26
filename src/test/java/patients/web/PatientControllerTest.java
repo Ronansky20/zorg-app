@@ -60,7 +60,9 @@ class PatientControllerTest {
         mvc.perform(get("/api/patients").session(jansen))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
-                .andExpect(jsonPath("$[0].weight").value(70.0));
+                .andExpect(jsonPath("$[0].weight").value(70.0))
+                .andExpect(jsonPath("$[0].bmi").value(21.6))
+                .andExpect(jsonPath("$[0].bmiCategory").value("Healthy weight"));
     }
 
     @Test
@@ -73,6 +75,8 @@ class PatientControllerTest {
                 .andExpect(jsonPath("$[0].medications[0].name").value("Paracetamol"))
                 .andExpect(jsonPath("$[0].weight").doesNotExist())
                 .andExpect(jsonPath("$[0].height").doesNotExist())
+                .andExpect(jsonPath("$[0].bmi").doesNotExist())
+                .andExpect(jsonPath("$[0].bmiCategory").doesNotExist())
                 .andExpect(jsonPath("$[0].address").doesNotExist());
     }
 

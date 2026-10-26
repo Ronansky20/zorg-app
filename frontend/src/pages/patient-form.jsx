@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { RiAddLine } from "@remixicon/react"
 import { addPatient, getUsers, updatePatient } from "@/api"
 import { useConfig } from "@/hooks/use-config"
-import { actionLabel, fieldLabel, fullName, today, validatePatient } from "@/lib/patients"
+import { actionLabel, bmiCategory, calculateBmi, fieldLabel, fullName, today, validatePatient } from "@/lib/patients"
 import { CareTeamBadges } from "@/components/care-team-badges"
 import { FormField } from "@/components/form-field"
 import { MedicationDialog } from "@/components/medication-dialog"
@@ -64,6 +64,7 @@ export function PatientForm({ me, patient, onDone }) {
   const canEdit = (key) => isNew || me.editableFields.includes(key)
   const name = isNew ? "the new patient" : fullName(patient)
   const title = actionLabel(config, isNew ? "ADD_PATIENT" : "EDIT_PATIENT")
+  const bmi = calculateBmi(Number(values.weight), Number(values.height))
 
   useEffect(() => {
     if (!isNew || !config) return
@@ -200,6 +201,16 @@ export function PatientForm({ me, patient, onDone }) {
                   </FormField>
                 )}
               </div>
+              {canView("weight") && canView("height") && (
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <FormField id="bmi" label="BMI" disabled description="Calculated from weight and height, updates while you type">
+                    <InputGroup>
+                      <InputGroupInput id="bmi" readOnly disabled value={bmi?.toFixed(1) ?? ""} placeholder="—" />
+                      {bmi !== null && <InputGroupAddon align="inline-end">{bmiCategory(bmi)}</InputGroupAddon>}
+                    </InputGroup>
+                  </FormField>
+                </div>
+              )}
             </FormSection>
           </>
         )}

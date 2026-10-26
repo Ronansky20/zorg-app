@@ -3,7 +3,7 @@ import { GridList, GridListItem } from "react-aria-components"
 import { RiArrowRightSLine, RiSearchLine, RiUserLine, RiUserSearchLine } from "@remixicon/react"
 import { getPatients } from "@/api"
 import { useConfig } from "@/hooks/use-config"
-import { PATIENT_COLUMNS, age, columnLabel, fieldLabel, formatDate, formatField, fullName, queryWords, searchFieldsFor, searchPatients } from "@/lib/patients"
+import { PATIENT_COLUMNS, age, canViewColumn, columnLabel, fieldLabel, formatDate, formatField, fullName, queryWords, searchFieldsFor, searchPatients } from "@/lib/patients"
 import { CareTeamBadges } from "@/components/care-team-badges"
 import { Badge } from "@/components/ui/badge"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb"
@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 const ALL_FIELDS = { key: "all", label: "All fields" }
-const PREVIEW_COLUMNS = PATIENT_COLUMNS.filter((column) => ["address", "weight", "height"].includes(column.key))
+const PREVIEW_COLUMNS = PATIENT_COLUMNS.filter((column) => ["address", "weight", "height", "bmi"].includes(column.key))
 
 function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -81,10 +81,15 @@ function PatientPreview({ me, patient, onOpen }) {
       </div>
       <Separator />
       <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[7rem_minmax(0,1fr)] sm:gap-y-3">
-        {PREVIEW_COLUMNS.filter((column) => canView(column.key)).map((column) => (
+        {PREVIEW_COLUMNS.filter((column) => canViewColumn(column, me.viewableFields)).map((column) => (
           <div key={column.key} className="contents">
             <dt className="text-muted-foreground">{columnLabel(config, column)}</dt>
-            <dd className="mb-2 font-medium sm:mb-0">{formatField(column, patient[column.key])}</dd>
+            <dd className="mb-2 font-medium sm:mb-0">
+              {formatField(column, patient[column.key])}
+              {column.key === "bmi" && patient.bmiCategory && (
+                <span className="font-normal text-muted-foreground"> · {patient.bmiCategory}</span>
+              )}
+            </dd>
           </div>
         ))}
         {canView("medications") && (

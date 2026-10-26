@@ -1,6 +1,7 @@
 package patients.web.api;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import patients.model.BmiCategory;
 import patients.model.Medication;
 import patients.model.Patient;
 import patients.model.PatientField;
@@ -15,13 +16,14 @@ import java.util.stream.Collectors;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PatientResponse(String id, String firstName, String lastName, LocalDate birthDate, Double weight,
-                              Double height, String address, List<Medication> medications,
-                              List<CareTeamMember> careTeam) {
+                              Double height, Double bmi, String bmiCategory, String address,
+                              List<Medication> medications, List<CareTeamMember> careTeam) {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record CareTeamMember(String id, String name, String profession) {}
 
     static PatientResponse of(Patient patient, Set<PatientField> viewable, List<User> users) {
+        Double bmi = showsBmi(patient, viewable) ? Math.round(patient.bmi() * 10) / 10.0 : null;
         return new PatientResponse(
                 patient.id(),
                 viewable.contains(PatientField.FIRST_NAME) ? patient.firstName() : null,
@@ -29,9 +31,16 @@ public record PatientResponse(String id, String firstName, String lastName, Loca
                 viewable.contains(PatientField.DATE_OF_BIRTH) ? patient.birthDate() : null,
                 viewable.contains(PatientField.WEIGHT) ? patient.weight() : null,
                 viewable.contains(PatientField.HEIGHT) ? patient.height() : null,
+                bmi,
+                bmi == null ? null : BmiCategory.of(bmi).label,
                 viewable.contains(PatientField.ADDRESS) ? patient.address() : null,
                 viewable.contains(PatientField.MEDICATION) ? patient.medications() : null,
                 careTeam(patient, users));
+    }
+
+    private static boolean showsBmi(Patient patient, Set<PatientField> viewable) {
+        return viewable.contains(PatientField.WEIGHT) && viewable.contains(PatientField.HEIGHT)
+                && patient.weight() > 0 && patient.height() > 0;
     }
 
     private static List<CareTeamMember> careTeam(Patient patient, List<User> users) {
