@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { RiAddLine } from "@remixicon/react"
-import { addPatient, getUsers, updatePatient } from "@/api"
+import { addPatient, getPatient, getUsers, updatePatient } from "@/api"
 import { useConfig } from "@/hooks/use-config"
 import { actionLabel, bmiCategory, calculateBmi, fieldLabel, fullName, today, validatePatient } from "@/lib/patients"
 import { CareTeamBadges } from "@/components/care-team-badges"
@@ -49,8 +49,11 @@ function UnitInput({ unit, ...props }) {
 
 export function PatientForm({ me, patient, onDone }) {
   const isNew = !patient
+  const patientId = patient?.id
   const [values, setValues] = useState(() => toValues(patient))
   const [medications, setMedications] = useState(() => patient?.medications ?? [])
+  const [current, setCurrent] = useState(patient)
+  const [refreshing, setRefreshing] = useState(!isNew)
   const [careTeam, setCareTeam] = useState(() => new Set())
   const [errors, setErrors] = useState({})
   const [saveError, setSaveError] = useState(null)
@@ -62,7 +65,7 @@ export function PatientForm({ me, patient, onDone }) {
 
   const canView = (key) => me.viewableFields.includes(key)
   const canEdit = (key) => isNew || me.editableFields.includes(key)
-  const name = isNew ? "the new patient" : fullName(patient)
+  const name = isNew ? "the new patient" : fullName(current)
   const title = actionLabel(config, isNew ? "ADD_PATIENT" : "EDIT_PATIENT")
   const bmi = calculateBmi(Number(values.weight), Number(values.height))
 
@@ -72,6 +75,18 @@ export function PatientForm({ me, patient, onDone }) {
       .then(setCareTeamGroups)
       .catch((e) => setLoadError(e.message))
   }, [isNew, config])
+
+  useEffect(() => {
+    if (!patientId) return
+    getPatient(patientId)
+      .then((fresh) => {
+        setCurrent(fresh)
+        setValues(toValues(fresh))
+        setMedications(fresh.medications ?? [])
+      })
+      .catch((e) => setLoadError(e.message))
+      .finally(() => setRefreshing(false))
+  }, [patientId])
 
   function change(key, value) {
     setValues((current) => ({ ...current, [key]: value }))
@@ -86,7 +101,7 @@ export function PatientForm({ me, patient, onDone }) {
     return {
       id: key,
       value: values[key],
-      disabled: !canEdit(key),
+      disabled: refreshing || !canEdit(key),
       "aria-invalid": Boolean(errors[key]),
       onChange: (event) => change(key, event.target.value),
     }
@@ -240,7 +255,7 @@ export function PatientForm({ me, patient, onDone }) {
           </FormSection>
         ) : (
           <FormSection title="Care team" description="The care team is set when the patient is added and can't be changed here.">
-            <CareTeamBadges careTeam={patient.careTeam} me={me} />
+            <CareTeamBadges careTeam={current.careTeam} me={me} />
           </FormSection>
         )}
 
@@ -252,7 +267,7 @@ export function PatientForm({ me, patient, onDone }) {
                 onEdit={canEdit("medications") ? (index) => setDialog({ index }) : undefined}
                 onRemove={removeMedication} />
               {canEdit("medications") && (
-                <Button variant="outline" className="self-start" isDisabled={!config} onPress={() => setDialog({})}>
+                <Button variant="outline" className="self-start" isDisabled={!config || refreshing} onPress={() => setDialog({})}>
                   <RiAddLine data-icon="inline-start" />
                   Add medication
                 </Button>
@@ -265,7 +280,7 @@ export function PatientForm({ me, patient, onDone }) {
         {(loadError || saveError) && <FieldError>{saveError ?? loadError}</FieldError>}
         <div className="flex justify-end gap-2">
           <Button variant="outline" onPress={() => onDone()}>Cancel</Button>
-          <Button type="submit" isDisabled={pending}>
+          <Button type="submit" isDisabled={pending || refreshing}>
             {pending ? "Saving…" : isNew ? title : "Save changes"}
           </Button>
         </div>
