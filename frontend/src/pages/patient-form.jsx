@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { RiAddLine } from "@remixicon/react"
 import { addPatient, getUsers, updatePatient } from "@/api"
 import { useConfig } from "@/hooks/use-config"
-import { actionLabel, fieldLabel, fullName, professionLabel, today, validatePatient } from "@/lib/patients"
+import { actionLabel, fieldLabel, fullName, today, validatePatient } from "@/lib/patients"
 import { CareTeamBadges } from "@/components/care-team-badges"
 import { FormField } from "@/components/form-field"
 import { MedicationDialog } from "@/components/medication-dialog"
@@ -10,7 +10,7 @@ import { MedicationTable } from "@/components/medication-table"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage } from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldContent, FieldDescription, FieldError, FieldTitle } from "@/components/ui/field"
+import { Field, FieldContent, FieldError, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Separator } from "@/components/ui/separator"
@@ -56,7 +56,7 @@ export function PatientForm({ me, patient, onDone }) {
   const [saveError, setSaveError] = useState(null)
   const [pending, setPending] = useState(false)
   const config = useConfig()
-  const [users, setUsers] = useState([])
+  const [careTeamGroups, setCareTeamGroups] = useState([])
   const [loadError, setLoadError] = useState(null)
   const [dialog, setDialog] = useState(null)
 
@@ -66,8 +66,11 @@ export function PatientForm({ me, patient, onDone }) {
   const title = actionLabel(config, isNew ? "ADD_PATIENT" : "EDIT_PATIENT")
 
   useEffect(() => {
-    if (isNew) getUsers().then(setUsers).catch((e) => setLoadError(e.message))
-  }, [isNew])
+    if (!isNew || !config) return
+    Promise.all(config.professions.map((profession) => getUsers(profession.id).then((users) => ({ profession, users }))))
+      .then(setCareTeamGroups)
+      .catch((e) => setLoadError(e.message))
+  }, [isNew, config])
 
   function change(key, value) {
     setValues((current) => ({ ...current, [key]: value }))
@@ -203,22 +206,26 @@ export function PatientForm({ me, patient, onDone }) {
 
         <Separator />
         {isNew ? (
-          <FormSection title="Care team" description="Who can view and edit this patient. You are added automatically.">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {users.map((user) => {
-                const isMe = user.id === me.user.id
-                return (
-                  <Field key={user.id} orientation="horizontal">
-                    <Checkbox aria-labelledby={`member-${user.id}`} isSelected={isMe || careTeam.has(user.id)}
-                      isDisabled={isMe} onChange={(selected) => toggleMember(user.id, selected)} />
-                    <FieldContent>
-                      <FieldTitle id={`member-${user.id}`}>{user.name}{isMe && " (you)"}</FieldTitle>
-                      <FieldDescription>{professionLabel(config, user.profession)}</FieldDescription>
-                    </FieldContent>
-                  </Field>
-                )
-              })}
-            </div>
+          <FormSection title="Care team" description="Who can view and edit this patient, by profession. You are added automatically.">
+            {careTeamGroups.filter((group) => group.users.length > 0).map(({ profession, users }) => (
+              <FieldSet key={profession.id}>
+                <FieldLegend variant="label" className="text-muted-foreground">{profession.label}s</FieldLegend>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {users.map((user) => {
+                    const isMe = user.id === me.user.id
+                    return (
+                      <Field key={user.id} orientation="horizontal">
+                        <Checkbox aria-labelledby={`member-${user.id}`} isSelected={isMe || careTeam.has(user.id)}
+                          isDisabled={isMe} onChange={(selected) => toggleMember(user.id, selected)} />
+                        <FieldContent>
+                          <FieldTitle id={`member-${user.id}`}>{user.name}{isMe && " (you)"}</FieldTitle>
+                        </FieldContent>
+                      </Field>
+                    )
+                  })}
+                </div>
+              </FieldSet>
+            ))}
           </FormSection>
         ) : (
           <FormSection title="Care team" description="The care team is set when the patient is added and can't be changed here.">

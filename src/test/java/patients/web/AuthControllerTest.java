@@ -136,4 +136,16 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(5)));
     }
+
+    @Test
+    void usersCanBeFilteredByProfession() throws Exception {
+        MockHttpSession jansen = login(mvc, "jansen");
+
+        mvc.perform(get("/api/users").param("profession", "DOCTOR").session(jansen))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].id", contains("jansen", "hendriks")));
+
+        mvc.perform(get("/api/users").param("profession", "NURSE").session(jansen))
+                .andExpect(status().isBadRequest());
+    }
 }
