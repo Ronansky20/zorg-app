@@ -16,9 +16,26 @@ export const PATIENT_COLUMNS = [
     { key: "birthDate", format: formatDate },
     { key: "weight", format: (kg) => `${kg} kg` },
     { key: "height", format: (m) => `${m} m` },
+    { key: "bmi", label: "BMI", requires: ["weight", "height"], format: (value) => value.toFixed(1) },
     { key: "address" },
     { key: "medications", format: (list) => list.map((m) => m.name).join(", ") || "None" },
 ]
+
+export function canViewColumn(column, viewableFields) {
+    return (column.requires ?? [column.key]).every((key) => viewableFields.includes(key))
+}
+
+export function calculateBmi(weight, height) {
+    if (!(weight > 0 && height > 0)) return null
+    return Math.round((weight / (height * height)) * 10) / 10
+}
+
+export function bmiCategory(bmi) {
+    if (bmi < 18.5) return "Underweight"
+    if (bmi < 25) return "Healthy weight"
+    if (bmi < 30) return "Overweight"
+    return "Obese"
+}
 
 function labelFrom(options, id) {
     return options?.find((option) => option.id === id)?.label ?? id
@@ -54,8 +71,8 @@ const DASHBOARDS = {
         stats: ["onMedication"],
     },
     PHYSIOTHERAPIST: {
-        description: "Track the weight and height of the patients assigned to your care",
-        columns: [...BASE_COLUMNS, "weight", "height"],
+        description: "Track the weight, height and BMI of the patients assigned to your care",
+        columns: [...BASE_COLUMNS, "weight", "height", "bmi"],
         stats: ["incomplete"],
     },
     DENTIST: {
