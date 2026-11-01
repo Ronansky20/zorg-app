@@ -13,7 +13,3 @@ build/
 
 # VS Code Java extension output
 bin/
-
-# Local Claude files
-CLAUDE.md
-learn.md
